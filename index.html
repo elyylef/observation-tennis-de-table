@@ -59,7 +59,7 @@ input[type=text]{width:100%;padding:14px;border-radius:12px;border:1px solid var
 .tablewrap{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
 .side-label{text-align:center;font-size:13px;color:var(--muted);font-weight:600;padding:4px 0;text-transform:uppercase;letter-spacing:.04em}
 .side-label.me{color:var(--me)}
-.ptable{position:relative;margin:0 auto;width:min(100%,calc((100dvh - 330px) * 0.555));aspect-ratio:152.5/274;
+.ptable{position:relative;margin:0 auto;width:min(100%,calc((100dvh - 392px) * 0.555));aspect-ratio:152.5/274;
   background:var(--table);border:4px solid #fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.25);
   display:grid;grid-template-rows:1fr 1fr;min-width:220px}
 .half{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}
@@ -123,6 +123,19 @@ input[type=text]{width:100%;padding:14px;border-radius:12px;border:1px solid var
 .grp .grphead{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .grp .grphead h3{margin:0}
 .grp .hist li:last-child{border-bottom:0}
+.markbar{display:flex;gap:6px;margin:2px 0 8px}
+.markbar button{flex:1;padding:9px 4px;border-radius:12px;background:var(--card);border:2px solid var(--line);font-weight:700;font-size:14px}
+.markbar button.sel{color:#fff;border-color:transparent;background:var(--accent)}
+.markbar button.sel[data-k=viser]{background:#1f9d55}
+.markbar button.sel[data-k=eviter]{background:#333}
+.zone .mk{position:absolute;right:4px;top:2px;font-size:20px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.zone.mk-viser{background:rgba(46,204,113,.78)}
+.zone.mk-eviter{background:repeating-linear-gradient(45deg,rgba(0,0,0,.6) 0 7px,rgba(0,0,0,.38) 7px 14px)}
+.zone.mk-viser,.zone.mk-eviter{box-shadow:inset 0 0 0 3px rgba(255,255,255,.85)}
+.zone.ol-viser{box-shadow:inset 0 0 0 3px #1f9d55}
+.zone.ol-eviter{box-shadow:inset 0 0 0 3px #111}
+.zone.ol-viser .mk,.zone.ol-eviter .mk{font-size:16px}
+.hint{text-align:center;font-size:14px;font-weight:600;color:var(--ink);margin-top:6px}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .top .pill{flex:none}
 </style>
@@ -180,6 +193,7 @@ input[type=text]{width:100%;padding:14px;border-radius:12px;border:1px solid var
     <div class="name" id="obsName"></div>
     <button class="pill" id="undo">↶ Annuler</button>
   </div>
+  <div class="markbar" id="markbar"></div>
   <div class="tabs" id="tabs"></div>
   <div class="tablewrap">
     <div class="side-label">Côté adversaire</div>
@@ -279,6 +293,9 @@ let cur = null;        // mode affiché en saisie
 let viewing = null;    // observation affichée dans le bilan
 let bMode = null;
 let bilanFrom = 'history';
+let markMode = 'count';   // count = noter les balles, viser, eviter
+const marksOf = (sess,mode) => (sess.marks&&sess.marks[mode]) || {};
+const copyMarks = m => JSON.parse(JSON.stringify(m||{}));
 
 function go(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+id));
@@ -379,11 +396,11 @@ $('#start').onclick=()=>{
   $('#name').value='';
 };
 
-function newSession(name, modes){
+function newSession(name, modes, marks){
   const prev=D.sessions.filter(s=>s.userId===D.current && key(s.name)===key(name));
   const num=prev.reduce((a,s)=>Math.max(a,s.num||0),0)+1;
   const shown=prev.length?prev[0].name:cap(name);
-  S={id:Date.now(),userId:D.current,name:shown,num,date:new Date().toISOString(),modes:modes.slice(),counts:{},log:[]};
+  S={id:Date.now(),userId:D.current,name:shown,num,date:new Date().toISOString(),modes:modes.slice(),marks:copyMarks(marks),counts:{},log:[]};
   modes.forEach(m=>S.counts[m]={});
   D.sessions.push(S); save();
   cur=modes[0];
@@ -403,6 +420,7 @@ function buildTable(el, renderZone){
 function count(mode,z){ return (S.counts[mode]&&S.counts[mode][z])||0; }
 
 function openObs(){
+  markMode='count'; S.marks=S.marks||{};
   $('#obsName').textContent=`👀 ${S.name} · n°${S.num}`;
   $('#meLabel').textContent='Côté de '+S.name;
   renderObs();
@@ -416,13 +434,35 @@ function renderTabs(sel,sess,active,onPick){
 }
 function renderObs(){
   renderTabs('#tabs',S,cur,m=>{cur=m;renderObs();});
-  buildTable($('#ptable'), z=>`<div class="zone" data-z="${z}"><span class="n">${z[1]}</span><span class="c">${count(cur,z)||''}</span></div>`);
-  $('#ptable').querySelectorAll('.zone').forEach(d=>d.addEventListener('pointerdown',e=>{e.preventDefault();hit(d.dataset.z,d,e);}));
+  renderMarkbar();
+  const mk=marksOf(S,cur);
+  buildTable($('#ptable'), z=>`<div class="zone ${mk[z]?'mk-'+mk[z]:''}" data-z="${z}"><span class="n">${z[1]}</span>${mk[z]?`<span class="mk">${mk[z]==='viser'?'🎯':'🚫'}</span>`:''}<span class="c">${count(cur,z)||''}</span></div>`);
+  $('#ptable').querySelectorAll('.zone').forEach(d=>d.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    if(markMode==='count') hit(d.dataset.z,d,e); else toggleMark(d.dataset.z);
+  }));
+  $('#extra').style.opacity = markMode==='count' ? '' : '.35';
+  $('#extra').style.pointerEvents = markMode==='count' ? '' : 'none';
   $('#extra').innerHTML = FAULTS.map(f=>`<button data-f="${f.id}">${f.t}<b>${count(cur,f.id)}</b></button>`).join('');
   $('#extra').querySelectorAll('button').forEach(b=>b.onclick=()=>hit(b.dataset.f,null));
   const t=totalOf(S.counts[cur]);
   const m=MODES.find(x=>x.id===cur);
   $('#total').textContent = `${m.icon} ${m.t} — ${t} balle${t>1?'s':''} notée${t>1?'s':''}`;
+  $('#total').className = 'total';
+  if(markMode!=='count'){
+    $('#total').className='hint';
+    $('#total').textContent = markMode==='viser' ? '🎯 Touche les zones à viser (retouche pour enlever)' : '🚫 Touche les zones à éviter (retouche pour enlever)';
+  }
+}
+function renderMarkbar(){
+  const items=[['count','✋ Noter'],['viser','🎯 Viser'],['eviter','🚫 Éviter']];
+  $('#markbar').innerHTML=items.map(([k,l])=>`<button data-k="${k}" class="${markMode===k?'sel':''}">${l}</button>`).join('');
+  $('#markbar').querySelectorAll('button').forEach(b=>b.onclick=()=>{ markMode=b.dataset.k; renderObs(); });
+}
+function toggleMark(z){
+  S.marks=S.marks||{}; const m=S.marks[cur]=S.marks[cur]||{};
+  if(m[z]===markMode) delete m[z]; else m[z]=markMode;
+  save(); vibrate(); renderObs();
 }
 function hit(z,el){
   S.counts[cur][z]=(S.counts[cur][z]||0)+1;
@@ -479,7 +519,8 @@ function renderBilan(){
   const max=Math.max(1,...Object.entries(c).filter(([k])=>k.length===2).map(([,v])=>v));
   const heat = z=>{
     const v=c[z]||0, a=v/max;
-    return `<div class="zone" style="${v?`background:hsla(48,100%,${Math.round(72-22*a)}%,${(0.45+0.5*a).toFixed(2)});color:#1d1d1d;text-shadow:none`:''}"><span class="n">${z[1]}</span><span class="c">${v?pct(v,total)+'%':''}</span><span class="s">${v?v+' balle'+(v>1?'s':''):''}</span></div>`;
+    const mk0=marksOf(sess,bMode)[z];
+    return `<div class="zone ${mk0?'ol-'+mk0:''}" style="${v?`background:hsla(48,100%,${Math.round(72-22*a)}%,${(0.45+0.5*a).toFixed(2)});color:#1d1d1d;text-shadow:none`:''}"><span class="n">${z[1]}</span>${mk0?`<span class="mk">${mk0==='viser'?'🎯':'🚫'}</span>`:''}<span class="c">${v?pct(v,total)+'%':''}</span><span class="s">${v?v+' balle'+(v>1?'s':''):''}</span></div>`;
   };
   const sum=(arr)=>arr.reduce((a,z)=>a+(c[z]||0),0);
   const A=sum(['A1','A2','A3','A4','A5','A6']), B=sum(['B1','B2','B3','B4','B5','B6']);
@@ -501,6 +542,19 @@ function renderBilan(){
       if(pct(courte,inTable)>=60) tips.push('Services majoritairement courts : bien pour empêcher l\'adversaire d\'attaquer.');
       else if(pct(longue,inTable)>=60) tips.push('Services majoritairement longs : essayer aussi des services courts pour surprendre.');
     }
+  }
+  // objectif : zones visées / à éviter
+  const mkk=marksOf(sess,bMode);
+  const zV=Object.keys(mkk).filter(z=>mkk[z]==='viser'), zE=Object.keys(mkk).filter(z=>mkk[z]==='eviter');
+  const zl=z=>(z[0]==='A'?'adv. ':'élève ')+z[1];
+  const nV=sum(zV), nE=sum(zE);
+  let objHtml='';
+  if(zV.length||zE.length){
+    objHtml=`<div class="card bars"><h3>🎯 Objectif</h3>
+      ${zV.length?`${bar('🎯 Zones visées',nV)}<div class="legend" style="text-align:left;margin:0 0 6px">${zV.map(zl).join(' · ')}</div>`:''}
+      ${zE.length?`${bar('🚫 À éviter',nE)}<div class="legend" style="text-align:left;margin:0">${zE.map(zl).join(' · ')}</div>`:''}</div>`;
+    if(zV.length) tips.push(`${pct(nV,total)}% des balles dans les zones visées (${nV} sur ${total}).`);
+    if(zE.length && nE) tips.push(`${nE} balle${nE>1?'s':''} dans les zones à éviter (${pct(nE,total)}%).`);
   }
   // évolution par rapport à l'observation précédente (même mode)
   const idx=sib.indexOf(sess), prev=idx>0?sib[idx-1]:null;
@@ -530,13 +584,14 @@ function renderBilan(){
       <div style="height:6px"></div>
       ${bar('Filet',c.filet||0)}${bar('Hors table',c.out||0)}
     </div>
+    ${objHtml}
     ${tips.length?`<div class="card"><h3>💡 À retenir</h3>${tips.map(t=>`<p class="tip">${t}</p>`).join('')}</div>`:''}
   `;
   buildTable($('#heat'),heat);
 }
 $('#nextObs').onclick=()=>{
   const v=viewing;
-  newSession(v.name, v.modes);
+  newSession(v.name, v.modes, v.marks);
   toast(`Observation n°${S.num} sur ${S.name}`);
 };
 function summaryText(sess){
@@ -569,6 +624,9 @@ function sheetRows(sess){
       pct_table:pct(inT,t),pct_fautes:pct((c.filet||0)+(c.out||0),t)};
     ZS.forEach(z=>row[(z[0]==='A'?'adv_z':'eleve_z')+z[1]]=c[z]||0);
     row.filet=c.filet||0; row.hors_table=c.out||0;
+    const mk=marksOf(sess,id), zv=Object.keys(mk).filter(z=>mk[z]==='viser'), ze=Object.keys(mk).filter(z=>mk[z]==='eviter');
+    row.pct_vise = zv.length ? pct(zv.reduce((a,z)=>a+(c[z]||0),0),t) : '';
+    row.pct_evite = ze.length ? pct(ze.reduce((a,z)=>a+(c[z]||0),0),t) : '';
     return row;
   }).filter(r=>r.total>0);
 }
@@ -616,7 +674,7 @@ function renderHistory(){
   });
   $('#hist').querySelectorAll('[data-new]').forEach(b=>b.onclick=()=>{
     const last=all.filter(s=>key(s.name)===key(b.dataset.new)).sort((a,c)=>c.num-a.num)[0];
-    newSession(last.name,last.modes);
+    newSession(last.name,last.modes,last.marks);
   });
   $('#hist').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     const s=D.sessions.find(x=>String(x.id)===b.dataset.del);
