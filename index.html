@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b3d2e">
+<title>Observation tennis de table</title>
+<style>
+:root{
+  --bg:#f3f5f4; --card:#fff; --ink:#14201b; --muted:#5d6b65; --line:#d9e0dc;
+  --table:#1565c0; --table2:#0d4f9c; --net:#f5f5f5; --accent:#e8590c; --ok:#2b8a3e; --bad:#c92a2a;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0f1513; --card:#19221f; --ink:#e8efeb; --muted:#97a6a0; --line:#2b3833; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+.screen{display:none;max-width:560px;margin:0 auto;padding:16px;min-height:100%}
+.screen.on{display:flex;flex-direction:column}
+h1{font-size:28px;margin:8px 0 4px}
+h2{font-size:20px;margin:16px 0 8px}
+.sub{color:var(--muted);margin:0 0 20px}
+.big{display:flex;align-items:center;gap:14px;width:100%;padding:18px;border-radius:16px;background:var(--card);
+  border:1px solid var(--line);text-align:left;margin-bottom:12px}
+.big .ico{font-size:34px}
+.big b{display:block;font-size:18px}
+.big span{color:var(--muted);font-size:14px}
+.big[disabled]{opacity:.45;cursor:default}
+label{display:block;font-weight:600;margin:14px 0 6px}
+input[type=text]{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:18px}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mode{padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--card);text-align:left}
+.mode b{display:block}
+.mode span{font-size:13px;color:var(--muted)}
+.mode.sel{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--card))}
+.btn{padding:14px 18px;border-radius:12px;background:var(--accent);color:#fff;font-weight:700;font-size:17px}
+.btn.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn:disabled{opacity:.4}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+.top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.top .name{font-weight:700;font-size:18px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:13px;padding:4px 10px;border-radius:99px;background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:6px;scrollbar-width:none}
+.tab{flex:none;padding:8px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:600}
+.tab.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.tab small{opacity:.8;font-weight:500}
+
+/* Table */
+.tablewrap{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
+.side-label{text-align:center;font-size:13px;color:var(--muted);font-weight:600;padding:4px 0;text-transform:uppercase;letter-spacing:.04em}
+.side-label.me{color:var(--accent)}
+.ptable{position:relative;margin:0 auto;width:min(100%,calc((100dvh - 330px) * 0.555));aspect-ratio:152.5/274;
+  background:var(--table);border:4px solid #fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.25);
+  display:grid;grid-template-rows:1fr 1fr;min-width:220px}
+.half{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}
+.half.top-h{border-bottom:3px solid var(--net)}
+.ptable::before{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:2px solid rgba(255,255,255,.85);pointer-events:none}
+.net{position:absolute;left:-14px;right:-14px;top:50%;height:6px;margin-top:-3px;background:repeating-linear-gradient(90deg,#222 0 3px,#ddd 3px 6px);border-radius:2px;pointer-events:none;z-index:2}
+.zone{position:relative;border:1px dashed rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;flex-direction:column;
+  color:#fff;user-select:none;-webkit-user-select:none;touch-action:manipulation;transition:background .15s}
+.zone:active{background:rgba(255,255,255,.25)}
+.zone .n{position:absolute;top:4px;left:6px;font-size:11px;opacity:.75}
+.zone .c{font-size:clamp(20px,6vw,32px);font-weight:800;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.zone.flash{animation:fl .35s}
+@keyframes fl{0%{background:rgba(255,200,0,.75)}100%{background:transparent}}
+.plus{position:absolute;font-weight:800;font-size:22px;color:#ffd43b;pointer-events:none;animation:up .6s forwards;z-index:3}
+@keyframes up{to{transform:translateY(-30px);opacity:0}}
+.extra{display:flex;gap:8px;margin-top:10px}
+.extra button{flex:1;padding:12px 6px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-weight:600;font-size:14px}
+.extra button b{display:block;font-size:20px;color:var(--bad)}
+.bottom{display:flex;gap:8px;margin-top:10px}
+.bottom .btn{flex:1}
+.total{text-align:center;color:var(--muted);font-size:14px;margin-top:6px}
+
+/* Bilan */
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.card h3{margin:0 0 10px;font-size:16px}
+.heat .zone{cursor:default}
+.heat .zone .c{font-size:clamp(16px,5vw,24px)}
+.heat .zone .s{font-size:11px;opacity:.9}
+.ptable.small{width:min(78%,300px)}
+.bars .b{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+.bars .b span:first-child{width:110px;flex:none}
+.bars .track{flex:1;height:14px;background:var(--line);border-radius:7px;overflow:hidden}
+.bars .fill{height:100%;background:var(--accent);border-radius:7px}
+.bars .b span:last-child{width:68px;text-align:right;font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.kpi b{display:block;font-size:22px}
+.kpi span{font-size:12px;color:var(--muted)}
+.tip{background:color-mix(in srgb,var(--accent) 12%,var(--card));border-left:4px solid var(--accent);padding:10px 12px;border-radius:8px;font-size:14px}
+.hist{list-style:none;padding:0;margin:0}
+.hist li{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.hist li div{flex:1}
+.hist small{color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+.toast.on{opacity:1}
+.legend{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+
+<!-- ACCUEIL -->
+<section class="screen on" id="s-home">
+  <h1>🏓 Observation tennis de table</h1>
+  <p class="sub">Analyse de jeu pendant le cours de tennis de table.</p>
+  <button class="big" data-go="setup"><span class="ico">👀</span><div><b>Mode observateur</b><span>J'observe un camarade et je note où tombe la balle</span></div></button>
+  <button class="big" data-go="history"><span class="ico">📋</span><div><b>Mes observations</b><span>Revoir les bilans enregistrés</span></div></button>
+</section>
+
+<!-- PRÉPARATION -->
+<section class="screen" id="s-setup">
+  <div class="top"><button class="pill" data-go="home">← Retour</button></div>
+  <h2>Qui j'observe ?</h2>
+  <label for="obsv">Ton prénom (observateur)</label>
+  <input type="text" id="obsv" placeholder="Ex. Tom" autocomplete="off" maxlength="30">
+  <label for="name">Prénom de l'élève observé</label>
+  <input type="text" id="name" placeholder="Ex. Léa" autocomplete="off" maxlength="30">
+  <label>Que veux-tu observer ? <small style="font-weight:400;color:var(--muted)">(plusieurs choix possibles)</small></label>
+  <div class="modes" id="modes"></div>
+  <div style="flex:1"></div>
+  <button class="btn" id="start" style="margin-top:20px">Commencer l'observation</button>
+</section>
+
+<!-- OBSERVATION -->
+<section class="screen" id="s-obs">
+  <div class="top">
+    <button class="pill" id="quit">✕</button>
+    <div class="name" id="obsName"></div>
+    <button class="pill" id="undo">↶ Annuler</button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="tablewrap">
+    <div class="side-label">Côté adversaire</div>
+    <div class="ptable" id="ptable"></div>
+    <div class="side-label me" id="meLabel"></div>
+  </div>
+  <div class="extra" id="extra"></div>
+  <div class="total" id="total"></div>
+  <div class="bottom">
+    <button class="btn" id="toBilan">📊 Bilan</button>
+  </div>
+</section>
+
+<!-- BILAN -->
+<section class="screen" id="s-bilan">
+  <div class="top">
+    <button class="pill" id="backObs">← Continuer</button>
+    <div class="name" id="bilanName"></div>
+  </div>
+  <div class="tabs" id="btabs"></div>
+  <div id="bilanBody"></div>
+  <button class="btn" id="send" style="background:var(--ok);margin-bottom:8px">📨 Envoyer au professeur</button>
+  <div class="row" style="margin-top:4px">
+    <button class="btn sec" id="share">📤 Partager</button>
+    <button class="btn" id="save">💾 Terminer</button>
+  </div>
+</section>
+
+<!-- HISTORIQUE -->
+<section class="screen" id="s-history">
+  <div class="top"><button class="pill" data-go="home">← Retour</button></div>
+  <h2>Mes observations</h2>
+  <ul class="hist" id="hist"></ul>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Réglage professeur ----------
+   Colle ici l'adresse de l'application web Google Apps Script
+   (voir apps-script.gs). Laisse vide pour désactiver l'envoi. */
+const SHEET_URL = '';
+
+/* ---------- Données ---------- */
+const MODES = [
+  {id:'service',  t:'Service',          d:'Où tombe le service ?', icon:'🎯'},
+  {id:'remise',   t:'Remise de service',d:'Où tombe le retour ?', icon:'↩️'},
+  {id:'gagnant',  t:'Point marqué',     d:'Où l\'élève a marqué', icon:'✅'},
+  {id:'perdu',    t:'Point perdu',      d:'Où l\'adversaire a marqué', icon:'❌'},
+  {id:'echange',  t:'Toutes les balles',d:'Placement pendant l\'échange', icon:'🔁'},
+];
+// 12 zones : A1..A6 = côté adversaire (haut), B1..B6 = côté élève (bas)
+// Rangées : pour chaque demi-table, rangée "longue" (fond de table) et "courte" (près du filet)
+const FAULTS = [{id:'filet',t:'Filet'},{id:'out',t:'Hors table'}];
+
+let S = null;          // session en cours
+let cur = null;        // mode affiché
+let viewing = null;    // session affichée dans le bilan (peut venir de l'historique)
+let bMode = null;
+
+const $ = s => document.querySelector(s);
+const store = {
+  get(){ try{ return JSON.parse(localStorage.getItem('ping-obs')||'[]') }catch(e){ return [] } },
+  set(v){ try{ localStorage.setItem('ping-obs',JSON.stringify(v)) }catch(e){} },
+  getCur(){ try{ return JSON.parse(localStorage.getItem('ping-cur')||'null') }catch(e){ return null } },
+  setCur(v){ try{ v?localStorage.setItem('ping-cur',JSON.stringify(v)):localStorage.removeItem('ping-cur') }catch(e){} },
+};
+
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+id));
+  window.scrollTo(0,0);
+  if(id==='history') renderHistory();
+}
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('on'),1600); }
+function vibrate(){ try{ navigator.vibrate && navigator.vibrate(15) }catch(e){} }
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- Préparation ---------- */
+const selModes = new Set(['service']);
+function renderModes(){
+  $('#modes').innerHTML = MODES.map(m=>`<button class="mode ${selModes.has(m.id)?'sel':''}" data-m="${m.id}"><b>${m.icon} ${m.t}</b><span>${m.d}</span></button>`).join('');
+  $('#modes').querySelectorAll('.mode').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.m; selModes.has(id)?selModes.delete(id):selModes.add(id);
+    if(!selModes.size) selModes.add(id);
+    renderModes();
+  });
+}
+renderModes();
+try{ $('#obsv').value=localStorage.getItem('ping-me')||'' }catch(e){}
+
+$('#start').onclick=()=>{
+  const name=$('#name').value.trim();
+  const observer=$('#obsv').value.trim();
+  if(!observer){ $('#obsv').focus(); toast('Écris ton prénom'); return; }
+  try{ localStorage.setItem('ping-me',observer) }catch(e){}
+  if(!name){ $('#name').focus(); toast('Écris le prénom de l\'élève observé'); return; }
+  const modes=MODES.filter(m=>selModes.has(m.id)).map(m=>m.id);
+  S={id:Date.now(),name,observer,date:new Date().toISOString(),modes,counts:{},log:[]};
+  modes.forEach(m=>S.counts[m]={});
+  cur=modes[0];
+  store.setCur(S);
+  openObs();
+};
+
+/* ---------- Observation ---------- */
+function zoneLabel(z){ return z; }
+function buildTable(el, renderZone){
+  const half=(side)=>{
+    let h='';
+    // côté adversaire (haut) : rangée longue en haut, courte près du filet
+    // côté élève (bas) : rangée courte près du filet, longue en bas
+    const rows = side==='A' ? [[1,2,3],[4,5,6]] : [[4,5,6],[1,2,3]];
+    rows.forEach(r=>r.forEach(n=>{ h+=renderZone(side+n); }));
+    return `<div class="half ${side==='A'?'top-h':''}">${h}</div>`;
+  };
+  el.innerHTML = half('A')+half('B')+'<div class="net"></div>';
+}
+function count(mode,z){ return (S.counts[mode]&&S.counts[mode][z])||0; }
+function totalOf(c){ return Object.values(c||{}).reduce((a,b)=>a+b,0); }
+
+function openObs(){
+  $('#obsName').textContent='👀 '+S.name;
+  $('#meLabel').textContent='Côté de '+S.name;
+  renderTabs('#tabs',S,cur,m=>{cur=m;renderObs();});
+  renderObs();
+  go('obs');
+}
+function renderTabs(sel,sess,active,onPick){
+  const el=$(sel);
+  el.style.display = sess.modes.length>1?'flex':'none';
+  el.innerHTML = sess.modes.map(id=>{const m=MODES.find(x=>x.id===id);return `<button class="tab ${id===active?'sel':''}" data-m="${id}">${m.icon} ${m.t} <small>${totalOf(sess.counts[id])}</small></button>`}).join('');
+  el.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{onPick(b.dataset.m);});
+}
+function renderObs(){
+  renderTabs('#tabs',S,cur,m=>{cur=m;renderObs();});
+  buildTable($('#ptable'), z=>`<div class="zone" data-z="${z}"><span class="n">${z[1]}</span><span class="c">${count(cur,z)||''}</span></div>`);
+  $('#ptable').querySelectorAll('.zone').forEach(d=>d.addEventListener('pointerdown',e=>{e.preventDefault();hit(d.dataset.z,d,e);}));
+  $('#extra').innerHTML = FAULTS.map(f=>`<button data-f="${f.id}">${f.t}<b>${count(cur,f.id)}</b></button>`).join('');
+  $('#extra').querySelectorAll('button').forEach(b=>b.onclick=()=>hit(b.dataset.f,null));
+  const t=totalOf(S.counts[cur]);
+  const m=MODES.find(x=>x.id===cur);
+  $('#total').textContent = `${m.icon} ${m.t} — ${t} balle${t>1?'s':''} notée${t>1?'s':''}`;
+}
+function hit(z,el,e){
+  S.counts[cur][z]=(S.counts[cur][z]||0)+1;
+  S.log.push([cur,z]);
+  store.setCur(S);
+  vibrate();
+  renderObs();
+  if(el){
+    const nz=$('#ptable').querySelector(`[data-z="${z}"]`);
+    nz.classList.add('flash');
+    const p=document.createElement('div'); p.className='plus'; p.textContent='+1';
+    nz.appendChild(p);
+  } else toast(FAULTS.find(f=>f.id===z).t+' +1');
+}
+$('#undo').onclick=()=>{
+  const last=S.log.pop(); if(!last){toast('Rien à annuler');return;}
+  const [m,z]=last; S.counts[m][z]--; if(!S.counts[m][z]) delete S.counts[m][z];
+  cur=m; store.setCur(S); renderObs(); toast('Dernière balle annulée');
+};
+$('#quit').onclick=()=>{
+  if(S.log.length && !confirm('Quitter sans enregistrer cette observation ?')) return;
+  S=null; store.setCur(null); go('home');
+};
+$('#toBilan').onclick=()=>{ viewing=S; bMode=cur; renderBilan(true); go('bilan'); };
+$('#backObs').onclick=()=>{ if(viewing===S && S) openObs(); else go('history'); };
+
+/* ---------- Bilan ---------- */
+const pct=(n,t)=> t? Math.round(n*100/t) : 0;
+function renderBilan(live){
+  const sess=viewing;
+  $('#bilanName').textContent='📊 Bilan de '+sess.name;
+  $('#backObs').textContent = live ? '← Continuer' : '← Retour';
+  $('#save').style.display = live ? '' : 'none';
+  $('#send').textContent = sess.sent ? '✅ Envoyé au professeur (renvoyer ?)' : '📨 Envoyer au professeur';
+  renderTabs('#btabs',sess,bMode,m=>{bMode=m;renderBilan(live);});
+  const c=sess.counts[bMode]||{};
+  const total=totalOf(c);
+  const inTable=['A','B'].flatMap(s=>[1,2,3,4,5,6].map(n=>s+n)).reduce((a,z)=>a+(c[z]||0),0);
+  const faults=(c.filet||0)+(c.out||0);
+  const m=MODES.find(x=>x.id===bMode);
+  if(!total){
+    $('#bilanBody').innerHTML=`<div class="card"><h3>${m.icon} ${m.t}</h3><p class="sub" style="margin:0">Aucune balle notée pour ce mode.</p></div>`;
+    return;
+  }
+  const max=Math.max(1,...Object.entries(c).filter(([k])=>k.length===2).map(([,v])=>v));
+  const heat = z=>{
+    const v=c[z]||0, a=v/max;
+    return `<div class="zone" style="${v?`background:hsla(${Math.round(50-50*a)},95%,50%,${(0.55+0.4*a).toFixed(2)})`:''}"><span class="n">${z[1]}</span><span class="c">${v?pct(v,total)+'%':''}</span><span class="s">${v?v+' balle'+(v>1?'s':''):''}</span></div>`;
+  };
+  const sum=(arr)=>arr.reduce((a,z)=>a+(c[z]||0),0);
+  const A=sum(['A1','A2','A3','A4','A5','A6']), B=sum(['B1','B2','B3','B4','B5','B6']);
+  // Profondeur : 1-2-3 = longue (fond), 4-5-6 = courte (filet)
+  const longue=sum(['A1','A2','A3','B1','B2','B3']), courte=sum(['A4','A5','A6','B4','B5','B6']);
+  // Latéral (vu par l'observateur) : gauche = colonne 1/4 côté A … ; on uniformise par position écran
+  const gauche=sum(['A1','A4','B1','B4']), milieu=sum(['A2','A5','B2','B5']), droite=sum(['A3','A6','B3','B6']);
+  const bar=(l,v)=>`<div class="b"><span>${l}</span><div class="track"><div class="fill" style="width:${pct(v,total)}%"></div></div><span>${pct(v,total)}% (${v})</span></div>`;
+  const zones=Object.entries(c).filter(([k])=>k.length===2).sort((a,b)=>b[1]-a[1]);
+  const best=zones[0];
+  const side = z=> z[0]==='A'?'côté adversaire':'côté de '+sess.name;
+  const depth = z=> +z[1]<=3?'longue':'courte';
+  let tips=[];
+  if(best) tips.push(`Zone la plus fréquente : <b>zone ${best[0][1]} ${side(best[0])}</b> (balle ${depth(best[0])}) avec ${pct(best[1],total)}% des balles.`);
+  if(faults) tips.push(`${pct(faults,total)}% de fautes (${c.filet||0} au filet, ${c.out||0} hors table).`);
+  if(inTable>=5){
+    const lat=[['à gauche',gauche],['au milieu',milieu],['à droite',droite]].sort((a,b)=>b[1]-a[1]);
+    if(pct(lat[0][1],inTable)>=60) tips.push(`Les balles vont surtout <b>${lat[0][0]}</b> : le placement est peu varié, l'adversaire peut s'y attendre.`);
+    else if(pct(lat[0][1],inTable)<=45) tips.push(`Bonne variété de placement à gauche / milieu / droite.`);
+    if(bMode==='service'){
+      if(pct(courte,inTable)>=60) tips.push('Services majoritairement courts : bien pour empêcher l\'adversaire d\'attaquer.');
+      else if(pct(longue,inTable)>=60) tips.push('Services majoritairement longs : essayer aussi des services courts pour surprendre.');
+    }
+  }
+  $('#bilanBody').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><b>${total}</b><span>balles notées</span></div>
+      <div class="kpi"><b style="color:var(--ok)">${pct(inTable,total)}%</b><span>sur la table</span></div>
+      <div class="kpi"><b style="color:var(--bad)">${pct(faults,total)}%</b><span>fautes</span></div>
+    </div>
+    <div class="card"><h3>${m.icon} ${m.t} — où la balle est tombée</h3>
+      <div class="side-label">Côté adversaire · ${pct(A,total)}%</div>
+      <div class="ptable small heat" id="heat"></div>
+      <div class="side-label me">Côté de ${esc(sess.name)} · ${pct(B,total)}%</div>
+      <div class="legend">% calculés sur toutes les balles notées (fautes comprises)</div>
+    </div>
+    <div class="card bars"><h3>Répartition</h3>
+      ${bar('Balles longues',longue)}${bar('Balles courtes',courte)}
+      <div style="height:6px"></div>
+      ${bar('Gauche',gauche)}${bar('Milieu',milieu)}${bar('Droite',droite)}
+      <div style="height:6px"></div>
+      ${bar('Filet',c.filet||0)}${bar('Hors table',c.out||0)}
+    </div>
+    ${tips.length?`<div class="card"><h3>💡 À retenir</h3>${tips.map(t=>`<p class="tip">${t}</p>`).join('')}</div>`:''}
+  `;
+  buildTable($('#heat'),heat);
+}
+function summaryText(sess){
+  const d=new Date(sess.date).toLocaleDateString('fr-FR');
+  let out=`🏓 Observation tennis de table — ${sess.name}\nObservateur : ${sess.observer||'?'}\n`; out+=`Observation de ${sess.name} — ${d}\n`;
+  sess.modes.forEach(id=>{
+    const m=MODES.find(x=>x.id===id), c=sess.counts[id]||{}, t=totalOf(c);
+    out+=`\n${m.icon} ${m.t} (${t} balles)\n`;
+    if(!t) return;
+    ['A','B'].forEach(s=>{
+      out+=`  ${s==='A'?'Côté adversaire':'Côté '+sess.name} : `+[1,2,3,4,5,6].map(n=>`z${n} ${pct(c[s+n]||0,t)}%`).join(' · ')+'\n';
+    });
+    out+=`  Filet ${pct(c.filet||0,t)}% · Hors table ${pct(c.out||0,t)}%\n`;
+  });
+  return out;
+}
+$('#share').onclick=async()=>{
+  const txt=summaryText(viewing);
+  try{ if(navigator.share){ await navigator.share({title:'Bilan '+viewing.name,text:txt}); return; } }catch(e){ if(e.name==='AbortError') return; }
+  try{ await navigator.clipboard.writeText(txt); toast('Bilan copié !'); }catch(e){ prompt('Copie ce bilan :',txt); }
+};
+function sheetRows(sess){
+  const ZS=['A1','A2','A3','A4','A5','A6','B1','B2','B3','B4','B5','B6'];
+  return sess.modes.map(id=>{
+    const c=sess.counts[id]||{}, t=totalOf(c), m=MODES.find(x=>x.id===id);
+    const inT=ZS.reduce((a,z)=>a+(c[z]||0),0);
+    const row={id:String(sess.id),date:new Date(sess.date).toLocaleString('fr-FR'),
+      observateur:sess.observer||'',observe:sess.name,mode:m.t,total:t,
+      pct_table:pct(inT,t),pct_fautes:pct((c.filet||0)+(c.out||0),t)};
+    ZS.forEach(z=>row[(z[0]==='A'?'adv_z':'eleve_z')+z[1]]=c[z]||0);
+    row.filet=c.filet||0; row.hors_table=c.out||0;
+    return row;
+  }).filter(r=>r.total>0);
+}
+$('#send').onclick=async()=>{
+  if(!SHEET_URL){ toast('Envoi non configuré par le professeur'); return; }
+  const rows=sheetRows(viewing);
+  if(!rows.length){ toast('Aucune balle notée'); return; }
+  const b=$('#send'); b.disabled=true; b.textContent='Envoi…';
+  try{
+    await fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({rows})});
+    viewing.sent=true;
+    if(viewing===S) store.setCur(S); else { const all=store.get(); const i=all.findIndex(x=>x.id===viewing.id); if(i>=0){all[i].sent=true;store.set(all);} }
+    toast('Bilan envoyé au professeur ✅');
+  }catch(e){ toast('Échec de l\'envoi : vérifie la connexion internet'); }
+  b.disabled=false; renderBilan(viewing===S);
+};
+$('#save').onclick=()=>{
+  if(!S) return;
+  const all=store.get(); all.unshift(S); store.set(all.slice(0,100));
+  store.setCur(null); S=null; toast('Observation enregistrée'); go('home');
+};
+
+/* ---------- Historique ---------- */
+function renderHistory(){
+  const all=store.get();
+  $('#hist').innerHTML = all.length ? all.map((s,i)=>{
+    const t=s.modes.reduce((a,m)=>a+totalOf(s.counts[m]),0);
+    return `<li><div><b>${esc(s.name)}</b><br><small>${new Date(s.date).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})} · ${s.modes.map(m=>MODES.find(x=>x.id===m).t).join(', ')} · ${t} balles</small></div>
+      <button class="pill" data-open="${i}">Voir</button><button class="pill" data-del="${i}">🗑</button></li>`;
+  }).join('') : '<p class="sub">Aucune observation enregistrée pour l\'instant.</p>';
+  $('#hist').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{viewing=all[+b.dataset.open];bMode=viewing.modes[0];renderBilan(false);go('bilan');});
+  $('#hist').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if(!confirm('Supprimer cette observation ?'))return; all.splice(+b.dataset.del,1); store.set(all); renderHistory(); });
+}
+
+/* Reprise d'une observation interrompue */
+const pending=store.getCur();
+if(pending && pending.log && pending.log.length && confirm(`Reprendre l'observation de ${pending.name} ?`)){ S=pending; cur=S.modes[0]; openObs(); }
+else store.setCur(null);
+</script>
+</body>
+</html>
