@@ -5,12 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0b3d2e">
+<meta name="theme-color" content="#1565c0">
+<meta name="apple-mobile-web-app-title" content="Observation TT">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22 width=%22512%22 height=%22512%22%3E%3Crect width=%22512%22 height=%22512%22 fill=%22%231565c0%22/%3E%3Cg transform=%22rotate%28-35 256 256%29%22%3E%3Crect x=%22233%22 y=%22330%22 width=%2246%22 height=%22120%22 rx=%2214%22 fill=%22%23d9a066%22/%3E%3Crect x=%22233%22 y=%22330%22 width=%2246%22 height=%2226%22 fill=%22%238d5a2b%22/%3E%3Ccircle cx=%22256%22 cy=%22215%22 r=%22128%22 fill=%22%238d5a2b%22/%3E%3Ccircle cx=%22256%22 cy=%22215%22 r=%22118%22 fill=%22%23d32f2f%22/%3E%3Cellipse cx=%22220%22 cy=%22170%22 rx=%2246%22 ry=%2230%22 fill=%22%23fff%22 opacity=%22.18%22 transform=%22rotate%28-30 220 170%29%22/%3E%3C/g%3E%3Ccircle cx=%22398%22 cy=%22402%22 r=%2234%22 fill=%22%23fff%22/%3E%3Ccircle cx=%22388%22 cy=%22392%22 r=%2210%22 fill=%22%23fff%22 opacity=%22.0%22/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon.png">
 <title>Observation tennis de table</title>
 <style>
 :root{
   --bg:#f3f5f4; --card:#fff; --ink:#14201b; --muted:#5d6b65; --line:#d9e0dc;
-  --table:#1565c0; --table2:#0d4f9c; --net:#f5f5f5; --accent:#e8590c; --ok:#2b8a3e; --bad:#c92a2a;
+  --table:#1565c0; --table2:#0d4f9c; --me:#c0392b; --net:#f5f5f5; --accent:#e8590c; --ok:#2b8a3e; --bad:#c92a2a;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#0f1513; --card:#19221f; --ink:#e8efeb; --muted:#97a6a0; --line:#2b3833; }
@@ -24,6 +27,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 .screen.on{display:flex;flex-direction:column}
 h1{font-size:28px;margin:8px 0 4px}
 h2{font-size:20px;margin:16px 0 8px}
+.logo{width:72px;height:72px;border-radius:16px;display:block;box-shadow:0 3px 10px rgba(0,0,0,.2)}
 .sub{color:var(--muted);margin:0 0 20px}
 .big{display:flex;align-items:center;gap:14px;width:100%;padding:18px;border-radius:16px;background:var(--card);
   border:1px solid var(--line);text-align:left;margin-bottom:12px}
@@ -54,12 +58,13 @@ input[type=text]{width:100%;padding:14px;border-radius:12px;border:1px solid var
 /* Table */
 .tablewrap{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
 .side-label{text-align:center;font-size:13px;color:var(--muted);font-weight:600;padding:4px 0;text-transform:uppercase;letter-spacing:.04em}
-.side-label.me{color:var(--accent)}
+.side-label.me{color:var(--me)}
 .ptable{position:relative;margin:0 auto;width:min(100%,calc((100dvh - 330px) * 0.555));aspect-ratio:152.5/274;
   background:var(--table);border:4px solid #fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.25);
   display:grid;grid-template-rows:1fr 1fr;min-width:220px}
 .half{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}
 .half.top-h{border-bottom:3px solid var(--net)}
+.half.me-h{background:var(--me)}
 .ptable::before{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:2px solid rgba(255,255,255,.85);pointer-events:none}
 .net{position:absolute;left:-14px;right:-14px;top:50%;height:6px;margin-top:-3px;background:repeating-linear-gradient(90deg,#222 0 3px,#ddd 3px 6px);border-radius:2px;pointer-events:none;z-index:2}
 .zone{position:relative;border:1px dashed rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;flex-direction:column;
@@ -108,15 +113,25 @@ input[type=text]{width:100%;padding:14px;border-radius:12px;border:1px solid var
 
 <!-- ACCUEIL -->
 <section class="screen on" id="s-home">
-  <h1>🏓 Observation tennis de table</h1>
+  <img class="logo" alt="" src="icon.png"><h1>Observation tennis de table</h1>
   <p class="sub">Analyse de jeu pendant le cours de tennis de table.</p>
-  <button class="big" data-go="setup"><span class="ico">👀</span><div><b>Mode observateur</b><span>J'observe un camarade et je note où tombe la balle</span></div></button>
+  <button class="big" data-go="classe"><span class="ico">👀</span><div><b>Mode observateur</b><span>J'observe un camarade et je note où tombe la balle</span></div></button>
   <button class="big" data-go="history"><span class="ico">📋</span><div><b>Mes observations</b><span>Revoir les bilans enregistrés</span></div></button>
+</section>
+
+<!-- CLASSE -->
+<section class="screen" id="s-classe">
+  <div class="top"><button class="pill" data-go="home">← Retour</button></div>
+  <h2>Dans quelle classe es-tu ?</h2>
+  <p class="sub">Le professeur pourra trier les bilans par classe.</p>
+  <button class="big" data-classe="Seconde"><span class="ico">2️⃣</span><div><b>Seconde</b></div></button>
+  <button class="big" data-classe="Première"><span class="ico">1️⃣</span><div><b>Première</b></div></button>
+  <button class="big" data-classe="Terminale"><span class="ico">🎓</span><div><b>Terminale</b></div></button>
 </section>
 
 <!-- PRÉPARATION -->
 <section class="screen" id="s-setup">
-  <div class="top"><button class="pill" data-go="home">← Retour</button></div>
+  <div class="top"><button class="pill" data-go="classe">← Retour</button><span class="pill" id="classeTag"></span></div>
   <h2>Qui j'observe ?</h2>
   <label for="obsv">Ton prénom (observateur)</label>
   <input type="text" id="obsv" placeholder="Ex. Tom" autocomplete="off" maxlength="30">
@@ -190,6 +205,7 @@ const MODES = [
 // Rangées : pour chaque demi-table, rangée "longue" (fond de table) et "courte" (près du filet)
 const FAULTS = [{id:'filet',t:'Filet'},{id:'out',t:'Hors table'}];
 
+let CLASSE = null;
 let S = null;          // session en cours
 let cur = null;        // mode affiché
 let viewing = null;    // session affichée dans le bilan (peut venir de l'historique)
@@ -209,6 +225,9 @@ function go(id){
   if(id==='history') renderHistory();
 }
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+document.querySelectorAll('[data-classe]').forEach(b=>b.onclick=()=>{
+  CLASSE=b.dataset.classe; $('#classeTag').textContent='🎓 '+CLASSE; go('setup');
+});
 
 function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('on'),1600); }
 function vibrate(){ try{ navigator.vibrate && navigator.vibrate(15) }catch(e){} }
@@ -234,7 +253,7 @@ $('#start').onclick=()=>{
   try{ localStorage.setItem('ping-me',observer) }catch(e){}
   if(!name){ $('#name').focus(); toast('Écris le prénom de l\'élève observé'); return; }
   const modes=MODES.filter(m=>selModes.has(m.id)).map(m=>m.id);
-  S={id:Date.now(),name,observer,date:new Date().toISOString(),modes,counts:{},log:[]};
+  S={id:Date.now(),name,observer,classe:CLASSE,date:new Date().toISOString(),modes,counts:{},log:[]};
   modes.forEach(m=>S.counts[m]={});
   cur=modes[0];
   store.setCur(S);
@@ -250,7 +269,7 @@ function buildTable(el, renderZone){
     // côté élève (bas) : rangée courte près du filet, longue en bas
     const rows = side==='A' ? [[1,2,3],[4,5,6]] : [[4,5,6],[1,2,3]];
     rows.forEach(r=>r.forEach(n=>{ h+=renderZone(side+n); }));
-    return `<div class="half ${side==='A'?'top-h':''}">${h}</div>`;
+    return `<div class="half ${side==='A'?'top-h':'me-h'}">${h}</div>`;
   };
   el.innerHTML = half('A')+half('B')+'<div class="net"></div>';
 }
@@ -326,7 +345,7 @@ function renderBilan(live){
   const max=Math.max(1,...Object.entries(c).filter(([k])=>k.length===2).map(([,v])=>v));
   const heat = z=>{
     const v=c[z]||0, a=v/max;
-    return `<div class="zone" style="${v?`background:hsla(${Math.round(50-50*a)},95%,50%,${(0.55+0.4*a).toFixed(2)})`:''}"><span class="n">${z[1]}</span><span class="c">${v?pct(v,total)+'%':''}</span><span class="s">${v?v+' balle'+(v>1?'s':''):''}</span></div>`;
+    return `<div class="zone" style="${v?`background:hsla(48,100%,${Math.round(72-22*a)}%,${(0.45+0.5*a).toFixed(2)});color:#1d1d1d;text-shadow:none`:''}"><span class="n">${z[1]}</span><span class="c">${v?pct(v,total)+'%':''}</span><span class="s">${v?v+' balle'+(v>1?'s':''):''}</span></div>`;
   };
   const sum=(arr)=>arr.reduce((a,z)=>a+(c[z]||0),0);
   const A=sum(['A1','A2','A3','A4','A5','A6']), B=sum(['B1','B2','B3','B4','B5','B6']);
@@ -376,7 +395,7 @@ function renderBilan(live){
 }
 function summaryText(sess){
   const d=new Date(sess.date).toLocaleDateString('fr-FR');
-  let out=`🏓 Observation tennis de table — ${sess.name}\nObservateur : ${sess.observer||'?'}\n`; out+=`Observation de ${sess.name} — ${d}\n`;
+  let out=`🏓 Observation tennis de table — ${sess.name}${sess.classe?' ('+sess.classe+')':''}\nObservateur : ${sess.observer||'?'}\n`; out+=`Observation de ${sess.name} — ${d}\n`;
   sess.modes.forEach(id=>{
     const m=MODES.find(x=>x.id===id), c=sess.counts[id]||{}, t=totalOf(c);
     out+=`\n${m.icon} ${m.t} (${t} balles)\n`;
@@ -399,7 +418,7 @@ function sheetRows(sess){
     const c=sess.counts[id]||{}, t=totalOf(c), m=MODES.find(x=>x.id===id);
     const inT=ZS.reduce((a,z)=>a+(c[z]||0),0);
     const row={id:String(sess.id),date:new Date(sess.date).toLocaleString('fr-FR'),
-      observateur:sess.observer||'',observe:sess.name,mode:m.t,total:t,
+      classe:sess.classe||'',observateur:sess.observer||'',observe:sess.name,mode:m.t,total:t,
       pct_table:pct(inT,t),pct_fautes:pct((c.filet||0)+(c.out||0),t)};
     ZS.forEach(z=>row[(z[0]==='A'?'adv_z':'eleve_z')+z[1]]=c[z]||0);
     row.filet=c.filet||0; row.hors_table=c.out||0;
@@ -430,7 +449,7 @@ function renderHistory(){
   const all=store.get();
   $('#hist').innerHTML = all.length ? all.map((s,i)=>{
     const t=s.modes.reduce((a,m)=>a+totalOf(s.counts[m]),0);
-    return `<li><div><b>${esc(s.name)}</b><br><small>${new Date(s.date).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})} · ${s.modes.map(m=>MODES.find(x=>x.id===m).t).join(', ')} · ${t} balles</small></div>
+    return `<li><div><b>${esc(s.name)}</b><br><small>${s.classe?esc(s.classe)+' · ':''}${new Date(s.date).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})} · ${s.modes.map(m=>MODES.find(x=>x.id===m).t).join(', ')} · ${t} balles</small></div>
       <button class="pill" data-open="${i}">Voir</button><button class="pill" data-del="${i}">🗑</button></li>`;
   }).join('') : '<p class="sub">Aucune observation enregistrée pour l\'instant.</p>';
   $('#hist').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{viewing=all[+b.dataset.open];bMode=viewing.modes[0];renderBilan(false);go('bilan');});

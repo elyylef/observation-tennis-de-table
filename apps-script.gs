@@ -12,7 +12,7 @@
  */
 
 const HEADERS = [
-  'id', 'date', 'observateur', 'observe', 'mode', 'total', 'pct_table', 'pct_fautes',
+  'id', 'date', 'classe', 'observateur', 'observe', 'mode', 'total', 'pct_table', 'pct_fautes',
   'adv_z1', 'adv_z2', 'adv_z3', 'adv_z4', 'adv_z5', 'adv_z6',
   'eleve_z1', 'eleve_z2', 'eleve_z3', 'eleve_z4', 'eleve_z5', 'eleve_z6',
   'filet', 'hors_table', 'recu_le'
