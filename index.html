@@ -162,6 +162,8 @@ details.card p{margin:8px 0 0;font-size:14px;color:var(--muted)}
 .critbar .dots{font-size:18px;margin:4px 0}
 #s-obs.hascrit .ptable{width:min(100%,calc((100dvh - 470px) * 0.555))}
 #critTable .zone .c{font-size:26px;opacity:.9}
+.pill{white-space:nowrap}
+.grp .grphead{gap:8px;align-items:flex-start}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .top .pill{flex:none}
 </style>
@@ -175,14 +177,14 @@ details.card p{margin:8px 0 0;font-size:14px;color:var(--muted)}
   <p class="sub" id="homeSub">Analyse de jeu pendant le cours de tennis de table.</p>
   <button class="big" data-go="setup"><span class="ico">👀</span><div><b>Observer un camarade</b><span>Je note où tombe la balle</span></div></button>
   <button class="big" data-go="history"><span class="ico">📋</span><div><b>Mes observations</b><span id="histCount">Revoir les bilans enregistrés</span></div></button>
-  <button class="big" data-go="sit"><span class="ico">🏓</span><div><b>Situation 2</b><span id="sitCount">La situation prescrite d'après le bilan</span></div></button>
+  <button class="big" data-go="sit"><span class="ico">🏓</span><div><b>Situation 2</b><span id="sitCount">Les consignes d'après le bilan</span></div></button>
 </section>
 
 <!-- SITUATION 2 -->
 <section class="screen" id="s-sit">
   <div class="top"><button class="pill" data-go="home">← Retour</button><span class="userslot"></span></div>
   <h2>Situation 2</h2>
-  <p class="sub">La situation prescrite d'après le bilan. Lance-la pour compter les essais avec la table.</p>
+  <p class="sub">Les consignes prescrites d'après le bilan, gardées sous la main. Pas besoin de les observer : tu les fais en jouant.</p>
   <div id="sitList"></div>
 </section>
 
@@ -359,6 +361,7 @@ const marksOf = (sess,mode) => (sess.marks&&sess.marks[mode]) || {};
 const copyMarks = m => JSON.parse(JSON.stringify(m||{}));
 
 function go(id){
+  if(id!=='sit') editSitId=null;
   document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+id));
   window.scrollTo(0,0);
   renderUserSlots();
@@ -390,7 +393,8 @@ function renderHome(){
   const n=mySessions().length;
   $('#histCount').textContent = n? `${n} observation${n>1?'s':''} enregistrée${n>1?'s':''}` : 'Aucune observation pour l\'instant';
   const ns=mySituations().length;
-  $('#sitCount').textContent = ns ? `${ns} situation${ns>1?'s':''} prescrite${ns>1?'s':''} · à lancer` : 'Aucune situation prescrite pour l\'instant';
+  const todo=mySituations().filter(t=>!t.done).length;
+  $('#sitCount').textContent = !ns ? 'Aucune consigne gardée pour l\'instant' : (todo ? `${todo} situation${todo>1?'s':''} à faire` : 'Tout est fait ✅');
 }
 
 /* ---------- Utilisateurs ---------- */
@@ -702,9 +706,9 @@ function adviceHtml(a){
 
 /* ---------- Une situation selon le niveau ---------- */
 const LEVELS={1:'Je consolide',2:'Je varie',3:'Je me challenge'};
-function situationRaw(sess,mode){
+function situationsAll(sess,mode){
   const x=metrics(sess,mode);
-  if(x.total<5) return null;
+  if(x.total<5) return [];
   const c=sess.counts[mode]||{}, mk=marksOf(sess,mode);
   const pF=pct(x.faults,x.total), pV=pct(x.nV,x.total);
   const lat=[['à gauche',x.g],['au milieu',x.m],['à droite',x.d]].sort((a,b)=>b[1]-a[1]);
@@ -718,22 +722,23 @@ function situationRaw(sess,mode){
   const allA=['A1','A2','A3','A4','A5','A6'];
   const colZ={'à gauche':['A1','A4'],'au milieu':['A2','A5'],'à droite':['A3','A6']};
   const tz = zV.length ? zV : [least];
-  // niveau 1 : trop de fautes ; niveau 2 : régulier mais à affiner ; niveau 3 : solide
+  // niveau 1 : consolider la régularité
   const nSF = pF>=40?5:8;
-  if(pF>=25) return {level:1,icon:'🔁',title:'Le sans-faute',crit:{essais:nSF,besoin:nSF,zones:allA},
+  const L1={level:1,icon:'🔁',title:'Le sans-faute',crit:{essais:nSF,besoin:nSF,zones:allA},
     setup:'À deux, en diagonale, avec des balles lentes et hautes. Ton partenaire renvoie, tu comptes à voix haute.',
-    goal:`Enchaîner ${nSF} échanges de suite sans faute. À la première faute, tu repars de zéro. (Aujourd'hui : ${pF}% de fautes.)`};
-  if(pF>=10 || lopsided || (x.hasV && pV<50)){
-    if(lopsided) return {level:2,icon:'↔️',title:'Les trois couloirs',crit:{essais:10,besoin:3,zones:colZ[rare]},
+    goal:`Enchaîner ${nSF} échanges de suite sans faute. À la première faute, tu repars de zéro.${pF>=10?` (Aujourd'hui : ${pF}% de fautes.)`:''}`};
+  // niveau 2 : varier, viser
+  let L2;
+  if(lopsided) L2={level:2,icon:'↔️',title:'Les trois couloirs',crit:{essais:10,besoin:3,zones:colZ[rare]},
       setup:'Partage ta table en trois couloirs (gauche, milieu, droite) avec du scotch ou des gobelets.',
       goal:`Sur 10 balles, mets-en au moins 3 dans chaque couloir, surtout ${rare} (peu utilisé : ${pct(lat[2][1],x.inT)}%).`};
-    if(imb) return {level:2,icon:'📏',title:'Court / long',crit:{essais:10,besoin:4,zones:(pct(x.lon,x.inT)>=70?['A4','A5','A6']:['A1','A2','A3'])},
+  else if(imb) L2={level:2,icon:'📏',title:'Court / long',crit:{essais:10,besoin:4,zones:(pct(x.lon,x.inT)>=70?['A4','A5','A6']:['A1','A2','A3'])},
       setup:'Fais 10 services en alternant : un court (2 rebonds près du filet) puis un long (au fond de la table).',
       goal:'Réussir 4 services courts et 4 longs sur 10. Ton partenaire essaie de deviner lequel arrive.'};
-    return {level:2,icon:'🎯',title:'La cible',crit:{essais:10,besoin:(x.hasV?Math.min(8,Math.max(3,Math.ceil((pV+20)/10))):3),zones:tz},
+  else L2={level:2,icon:'🎯',title:'La cible',crit:{essais:10,besoin:(x.hasV?Math.min(8,Math.max(3,Math.ceil((pV+20)/10))):3),zones:tz},
       setup:`Pose un gobelet ou une feuille dans ${cibleLongue}.`,
       goal:`Sur 10 balles, mets-en au moins ${x.hasV?Math.min(8,Math.max(3,Math.ceil((pV+20)/10))):3} dans la cible${x.hasV?` (aujourd'hui : ${pV}%)`:''}.`};
-  }
+  // niveau 3 : un jeu
   const games={
     service:{icon:'🏓',title:'Service gagnant',crit:{essais:5,besoin:3,zones:tz},setup:'Mini-match en 5 points, chacun sert 2 fois de suite.',goal:`Un service réussi dans ${cible} vaut 2 points, un service faute retire 1 point. Qui gagne ?`},
     remise:{icon:'↩️',title:'Le retour surprise',crit:{essais:10,besoin:5,zones:tz},setup:'Ton partenaire sert (court ou long), toi tu remets.',goal:`10 retours : marque 1 point à chaque retour placé dans ${cible}, 0 s'il est faute.`},
@@ -741,13 +746,21 @@ function situationRaw(sess,mode){
     perdu:{icon:'🛡️',title:'Le mur',crit:{essais:8,besoin:8,zones:allA},setup:'Ton partenaire attaque, toi tu défends en renvoyant toutes les balles.',goal:'Tiens 8 balles de suite en défense, puis on échange les rôles.'},
     echange:{icon:'⚡',title:'Échange à contrainte',crit:{essais:10,besoin:4,zones:tz},setup:'Échange libre en diagonale puis en ligne.',goal:`Annonce d'avance où tu vises à chaque balle. 1 point à chaque fois que tu as raison.`}
   };
-  return Object.assign({level:3},games[mode]||games.echange);
+  const L3=Object.assign({level:3},games[mode]||games.echange);
+  const rec = pF>=25 ? 1 : ((pF>=10 || lopsided || (x.hasV && pV<50)) ? 2 : 3);
+  return [L1,L2,L3].map(s=>Object.assign(s,{mode,rec:s.level===rec}));
 }
-function situation(sess,mode){ const s=situationRaw(sess,mode); if(s) s.mode=mode; return s; }
-function sitHtml(s){
-  if(!s) return '';
-  return `<div class="card"><h3>🏓 Ta situation pour progresser</h3><div class="sit"><span class="badge">Niveau ${s.level} · ${LEVELS[s.level]}</span><b>${s.icon} ${esc(s.title)}</b><p><b style="display:inline;font-size:14px">Mise en place :</b> ${s.setup}</p><p><b style="display:inline;font-size:14px">Objectif :</b> ${s.goal}</p></div>
-    <button class="btn" id="launchSit" style="margin-top:10px;width:100%">▶️ Lancer la situation</button></div>`;
+function situation(sess,mode){ return situationsAll(sess,mode).find(s=>s.rec)||null; }
+function sitHtml(all){
+  if(!all.length) return '';
+  const rec=all.find(s=>s.rec);
+  const lab='font-size:14px;display:inline';
+  const body=s=>`<b>${s.icon} ${esc(s.title)}</b><p><b style="${lab}">Mise en place :</b> ${esc(s.setup)}</p><p><b style="${lab}">Objectif :</b> ${esc(s.goal)}</p>`;
+  return `<div class="card"><h3>🏓 Ta situation pour progresser</h3><div class="sit"><span class="badge">Niveau ${rec.level} · ${LEVELS[rec.level]} · conseillée</span>${body(rec)}</div>
+    <button class="btn" id="launchSit" style="margin-top:10px;width:100%">📌 Garder cette situation</button></div>
+    <details class="card"><summary>🧭 Voir les 3 situations (niveaux 1, 2, 3)</summary>
+      ${all.map(s=>`<div class="sit"><span class="badge">Niveau ${s.level} · ${LEVELS[s.level]}${s.rec?' · conseillée':''}</span>${body(s)}${s.rec?'':`<button class="btn sec" data-addlvl="${s.level}" style="width:100%;margin-top:8px">📌 Garder celle-ci</button>`}</div>`).join('')}
+    </details>`;
 }
 const prevOf = sess => { const sib=siblings(sess), i=sib.indexOf(sess); return i>0?sib[i-1]:null; };
 const nextNumOf = sess => siblings(sess).reduce((a,s)=>Math.max(a,s.num||0),0)+1;
@@ -829,7 +842,7 @@ function renderBilan(){
   $('#bilanBody').innerHTML = `
     ${adviceHtml(adv)}
     ${critHtml(sess,bMode)}
-    ${sitHtml(situation(sess,bMode))}
+    ${sitHtml(situationsAll(sess,bMode))}
     <div class="kpis">
       <div class="kpi"><b>${total}</b><span>balles notées</span></div>
       <div class="kpi"><b style="color:var(--ok)">${pct(inTable,total)}%</b><span>sur la table</span></div>
@@ -858,6 +871,7 @@ function renderBilan(){
   `;
   buildTable($('#heat'),heat);
   const ls=$('#launchSit'); if(ls) ls.onclick=()=>addSituation(viewing,bMode);
+  document.querySelectorAll('[data-addlvl]').forEach(b=>b.onclick=()=>addSituation(viewing,bMode,+b.dataset.addlvl));
   const ta=$('#comment');
   if(ta) ta.oninput=()=>{ viewing.comment=ta.value; viewing.sent=false; save(); $('#send').textContent='📨 Envoyer au professeur'; };
 }
@@ -939,33 +953,50 @@ $('#delObs').onclick=()=>{
 };
 
 /* ---------- Situation 2 (prescrite d'après le bilan) ---------- */
-function addSituation(sess,mode){
-  const sit=situation(sess,mode); if(!sit) return;
-  const exist=D.situations.find(t=>t.userId===D.current && t.sessionId===sess.id && t.mode===mode);
+function addSituation(sess,mode,level){
+  const all=situationsAll(sess,mode);
+  const sit=level?all.find(s=>s.level===level):all.find(s=>s.rec); if(!sit) return;
+  const exist=D.situations.find(t=>t.userId===D.current && t.sessionId===sess.id && t.mode===mode && t.level===sit.level);
   if(!exist){
     D.situations.push({id:uid(),userId:D.current,forName:sess.name,sessionId:sess.id,date:new Date().toISOString(),
-      mode,level:sit.level,icon:sit.icon,title:sit.title,setup:sit.setup,goal:sit.goal,crit:sit.crit});
+      mode,level:sit.level,icon:sit.icon,title:sit.title,setup:sit.setup,goal:sit.goal,done:false});
     save();
   }
-  toast(exist?'Cette situation est déjà dans « Situation 2 »':'Situation ajoutée à « Situation 2 »');
+  toast(exist?'Cette situation est déjà gardée dans « Situation 2 »':'Consigne gardée dans « Situation 2 »');
   go('home');
 }
+let editSitId=null;
 function renderSit(){
   const list=mySituations(), el=$('#sitList');
-  if(!list.length){ el.innerHTML='<p class="sub">Aucune situation prescrite. Ouvre un bilan et touche « ▶️ Lancer la situation ».</p>'; return; }
-  el.innerHTML=list.map(t=>`<div class="card grp"><div class="grphead"><span class="badge" style="display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:99px;background:color-mix(in srgb,var(--table) 14%,var(--card));color:var(--table)">Pour ${esc(t.forName)} · niveau ${t.level} · ${LEVELS[t.level]}</span><button class="pill" data-delsit="${t.id}" aria-label="Supprimer">🗑</button></div>
-    <div class="sit"><b>${t.icon} ${esc(t.title)}</b>
-    <p><b style="display:inline;font-size:14px">Mise en place :</b> ${t.setup}</p>
-    <p><b style="display:inline;font-size:14px">Objectif :</b> ${t.goal}</p>
-    <p style="color:var(--muted)">Critère suivi : ${critText(t.crit,t.mode)} sur ${t.crit.essais} essais.</p></div>
-    <button class="btn" data-startsit="${t.id}" style="width:100%;margin-top:6px">▶️ Lancer la situation</button></div>`).join('');
-  el.querySelectorAll('[data-startsit]').forEach(b=>b.onclick=()=>{
-    const t=D.situations.find(x=>x.id===b.dataset.startsit);
-    newSession(t.forName,[t.mode],{},{[t.mode]:t.crit},t.title);
+  if(!list.length){ el.innerHTML='<p class="sub">Aucune consigne gardée. Ouvre un bilan et touche « 📌 Garder cette situation ».</p>'; return; }
+  const lab='font-size:14px;display:inline';
+  el.innerHTML=list.map(t=>{
+    const badge=`<span class="badge" style="display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:99px;background:color-mix(in srgb,var(--table) 14%,var(--card));color:var(--table)">Pour ${esc(t.forName)} · niveau ${t.level} · ${LEVELS[t.level]}${t.edited?' · modifiée':''}${t.done?' · faite ✅':''}</span>`;
+    if(t.id===editSitId) return `<div class="card grp"><div class="grphead">${badge}</div>
+      <label for="eTitle">Titre</label><input type="text" id="eTitle" value="${esc(t.title)}" maxlength="60">
+      <label for="eSetup">Mise en place</label><textarea id="eSetup" maxlength="400">${esc(t.setup)}</textarea>
+      <label for="eGoal">Objectif</label><textarea id="eGoal" maxlength="400">${esc(t.goal)}</textarea>
+      <div class="row" style="margin-top:10px"><button class="btn sec" data-e="cancel">Annuler</button><button class="btn" data-e="save">Enregistrer</button></div></div>`;
+    return `<div class="card grp" style="${t.done?'opacity:.7':''}"><div class="grphead">${badge}<span style="display:flex;gap:6px"><button class="pill" data-editsit="${t.id}">✏️ Modifier</button><button class="pill" data-delsit="${t.id}" aria-label="Supprimer">🗑</button></span></div>
+      <div class="sit"><b>${t.icon} ${esc(t.title)}</b>
+      <p><b style="${lab}">Mise en place :</b> ${esc(t.setup)}</p>
+      <p><b style="${lab}">Objectif :</b> ${esc(t.goal)}</p></div>
+      <button class="btn ${t.done?'sec':''}" data-donesit="${t.id}" style="width:100%;margin-top:6px">${t.done?'↩️ Remettre à faire':'✅ Marquer comme faite'}</button></div>`;
+  }).join('');
+  el.querySelectorAll('[data-donesit]').forEach(b=>b.onclick=()=>{
+    const t=D.situations.find(x=>x.id===b.dataset.donesit); t.done=!t.done; save(); renderSit(); renderHome();
   });
   el.querySelectorAll('[data-delsit]').forEach(b=>b.onclick=()=>{
-    if(!confirm('Supprimer cette situation ?')) return;
+    if(!confirm('Supprimer cette consigne ?')) return;
     D.situations=D.situations.filter(x=>x.id!==b.dataset.delsit); save(); renderSit(); renderHome();
+  });
+  el.querySelectorAll('[data-editsit]').forEach(b=>b.onclick=()=>{ editSitId=b.dataset.editsit; renderSit(); });
+  el.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.e==='cancel'){ editSitId=null; renderSit(); return; }
+    const t=D.situations.find(x=>x.id===editSitId), title=$('#eTitle').value.trim();
+    if(!title){ toast('Le titre ne peut pas être vide'); return; }
+    t.title=title; t.setup=$('#eSetup').value.trim(); t.goal=$('#eGoal').value.trim(); t.edited=true;
+    save(); editSitId=null; toast('Consigne enregistrée'); renderSit();
   });
 }
 
