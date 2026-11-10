@@ -151,6 +151,17 @@ details.card p{margin:8px 0 0;font-size:14px;color:var(--muted)}
 @media (prefers-color-scheme: dark){.sit .badge{color:#6fb1ff}}
 .sit b{display:block;font-size:16px}
 .sit p{margin:4px 0 0;font-size:14px}
+.stepper{display:flex;align-items:center;justify-content:space-between;padding:6px 0}
+.stepper span{font-weight:600}
+.stepper div{display:flex;align-items:center;gap:14px}
+.stepper button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:24px;font-weight:700}
+.stepper b{min-width:28px;text-align:center;font-size:24px}
+.dots{display:flex;flex-wrap:wrap;gap:4px;font-size:24px;line-height:1;margin:6px 0}
+.dot{color:var(--muted)}.dot.ok{color:#1f9d55}.dot.ko{color:var(--bad)}
+.critbar{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:6px;font-size:14px}
+.critbar .dots{font-size:18px;margin:4px 0}
+#s-obs.hascrit .ptable{width:min(100%,calc((100dvh - 470px) * 0.555))}
+#critTable .zone .c{font-size:26px;opacity:.9}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .top .pill{flex:none}
 </style>
@@ -164,6 +175,15 @@ details.card p{margin:8px 0 0;font-size:14px;color:var(--muted)}
   <p class="sub" id="homeSub">Analyse de jeu pendant le cours de tennis de table.</p>
   <button class="big" data-go="setup"><span class="ico">👀</span><div><b>Observer un camarade</b><span>Je note où tombe la balle</span></div></button>
   <button class="big" data-go="history"><span class="ico">📋</span><div><b>Mes observations</b><span id="histCount">Revoir les bilans enregistrés</span></div></button>
+  <button class="big" data-go="sit"><span class="ico">🏓</span><div><b>Situation 2</b><span id="sitCount">La situation prescrite d'après le bilan</span></div></button>
+</section>
+
+<!-- SITUATION 2 -->
+<section class="screen" id="s-sit">
+  <div class="top"><button class="pill" data-go="home">← Retour</button><span class="userslot"></span></div>
+  <h2>Situation 2</h2>
+  <p class="sub">La situation prescrite d'après le bilan. Lance-la pour compter les essais avec la table.</p>
+  <div id="sitList"></div>
 </section>
 
 <!-- UTILISATEURS -->
@@ -201,6 +221,30 @@ details.card p{margin:8px 0 0;font-size:14px;color:var(--muted)}
   <button class="btn" id="start" style="margin-top:20px">Commencer l'observation</button>
 </section>
 
+<!-- CRITÈRE DE RÉUSSITE -->
+<section class="screen" id="s-crit">
+  <div class="top"><button class="pill" id="critBack">← Retour</button><div class="name" id="critTitle"></div></div>
+  <h2>Critère de réussite</h2>
+  <p class="sub" id="critSub"></p>
+  <div class="card">
+    <div class="stepper"><span>Nombre d'essais</span><div><button id="essMinus" aria-label="Moins d'essais">−</button><b id="essVal">5</b><button id="essPlus" aria-label="Plus d'essais">+</button></div></div>
+    <div class="stepper"><span>Réussites à atteindre</span><div><button id="besMinus" aria-label="Moins">−</button><b id="besVal">3</b><button id="besPlus" aria-label="Plus">+</button></div></div>
+  </div>
+  <div class="card">
+    <h3>📍 Où doit tomber la balle ?</h3>
+    <p class="sub" style="margin:0 0 8px;font-size:14px">Touche la ou les zones à atteindre.</p>
+    <div class="side-label">Côté adversaire</div>
+    <div class="ptable small" id="critTable"></div>
+    <div class="side-label me" id="critMe"></div>
+    <div class="legend"><b>Zones 1 · 2 · 3</b> : fond de table (balle longue)<br><b>Zones 4 · 5 · 6</b> : près du filet (balle courte)</div>
+  </div>
+  <div class="card"><b id="critPreview"></b></div>
+  <div class="row">
+    <button class="btn sec" id="critSkip">Passer</button>
+    <button class="btn" id="critNext">Commencer</button>
+  </div>
+</section>
+
 <!-- OBSERVATION -->
 <section class="screen" id="s-obs">
   <div class="top">
@@ -210,6 +254,7 @@ details.card p{margin:8px 0 0;font-size:14px;color:var(--muted)}
   </div>
   <div class="markbar" id="markbar"></div>
   <div class="tabs" id="tabs"></div>
+  <div class="critbar" id="critbar"></div>
   <div class="tablewrap">
     <div class="side-label">Côté adversaire</div>
     <div class="ptable" id="ptable"></div>
@@ -276,8 +321,8 @@ const cap = n => { n=String(n).trim(); return n.charAt(0).toUpperCase()+n.slice(
 
 /* D = { users:[{id,name,classe}], current:id|null, sessions:[{id,userId,name,num,date,modes,counts,log,sent}] } */
 function load(){
-  try{ const r=JSON.parse(localStorage.getItem('ping-v2')); if(r && Array.isArray(r.users)) return r; }catch(e){}
-  const d={users:[],current:null,sessions:[]};
+  try{ const r=JSON.parse(localStorage.getItem('ping-v2')); if(r && Array.isArray(r.users)){ r.situations=r.situations||[]; return r; } }catch(e){}
+  const d={users:[],current:null,sessions:[],situations:[]};
   // migration des anciennes versions
   try{
     const old=JSON.parse(localStorage.getItem('ping-obs')||'[]');
@@ -297,6 +342,7 @@ let D = load();
 function save(){ try{ localStorage.setItem('ping-v2',JSON.stringify(D)); }catch(e){} }
 const user = () => D.users.find(u=>u.id===D.current) || null;
 const userOf = s => D.users.find(u=>u.id===s.userId) || {name:'?',classe:''};
+const mySituations = () => D.situations.filter(t=>t.userId===D.current).sort((a,b)=>b.date.localeCompare(a.date));
 const mySessions = () => D.sessions.filter(s=>s.userId===D.current);
 const siblings = s => D.sessions.filter(x=>x.userId===s.userId && key(x.name)===key(s.name)).sort((a,b)=>a.num-b.num);
 const totalOf = c => Object.values(c||{}).reduce((a,b)=>a+b,0);
@@ -318,6 +364,7 @@ function go(id){
   renderUserSlots();
   if(id==='home') renderHome();
   if(id==='history') renderHistory();
+  if(id==='sit') renderSit();
   if(id==='users') renderUsers();
   if(id==='setup') renderSetup();
   if(id==='newuser') renderNewUser();
@@ -342,6 +389,8 @@ function renderHome(){
   $('#homeSub').innerHTML = `Salut <b>${esc(u.name)}</b> · ${esc(u.classe)}`;
   const n=mySessions().length;
   $('#histCount').textContent = n? `${n} observation${n>1?'s':''} enregistrée${n>1?'s':''}` : 'Aucune observation pour l\'instant';
+  const ns=mySituations().length;
+  $('#sitCount').textContent = ns ? `${ns} situation${ns>1?'s':''} prescrite${ns>1?'s':''} · à lancer` : 'Aucune situation prescrite pour l\'instant';
 }
 
 /* ---------- Utilisateurs ---------- */
@@ -360,7 +409,7 @@ function renderUsers(){
   $('#userList').querySelectorAll('[data-deluser]').forEach(b=>b.onclick=()=>{
     const u=D.users.find(x=>x.id===b.dataset.deluser); const n=D.sessions.filter(s=>s.userId===u.id).length;
     if(!confirm(`Supprimer ${u.name} et ses ${n} observation${n>1?'s':''} ? Cette action est définitive.`)) return;
-    D.users=D.users.filter(x=>x.id!==u.id); D.sessions=D.sessions.filter(s=>s.userId!==u.id);
+    D.users=D.users.filter(x=>x.id!==u.id); D.sessions=D.sessions.filter(s=>s.userId!==u.id); D.situations=D.situations.filter(t=>t.userId!==u.id);
     if(D.current===u.id) D.current=null; save();
     if(!D.users.length) go('newuser'); else renderUsers();
   });
@@ -411,16 +460,72 @@ $('#start').onclick=()=>{
   $('#name').value='';
 };
 
-function newSession(name, modes, marks){
+function newSession(name, modes, marks, crit, label){
   const prev=D.sessions.filter(s=>s.userId===D.current && key(s.name)===key(name));
   const num=prev.reduce((a,s)=>Math.max(a,s.num||0),0)+1;
   const shown=prev.length?prev[0].name:cap(name);
-  S={id:Date.now(),userId:D.current,name:shown,num,date:new Date().toISOString(),modes:modes.slice(),marks:copyMarks(marks),counts:{},log:[]};
+  S={id:Date.now(),userId:D.current,name:shown,num,date:new Date().toISOString(),modes:modes.slice(),marks:copyMarks(marks),crit:copyMarks(crit),sit:label||'',counts:{},log:[]};
   modes.forEach(m=>S.counts[m]={});
   D.sessions.push(S); save();
   cur=modes[0];
-  openObs();
+  critIdx=0; openCrit();
 }
+
+/* ---------- Critère de réussite ---------- */
+let critIdx=0, critDraft=null;
+function openCrit(){
+  const mode=S.modes[critIdx], m=MODES.find(x=>x.id===mode);
+  const cr=S.crit&&S.crit[mode];
+  critDraft = cr ? JSON.parse(JSON.stringify(cr)) : {essais:5,besoin:3,zones:[]};
+  $('#critTitle').textContent=`${m.icon} ${m.t}`+(S.modes.length>1?` · ${critIdx+1}/${S.modes.length}`:'');
+  $('#critSub').textContent = S.sit ? `Situation « ${S.sit} » · ${S.name}. Tu peux ajuster le critère avant de commencer.` : `Observation n°${S.num} de ${S.name} : qu'est-ce qu'il ou elle doit réussir ?`;
+  $('#critNext').textContent = critIdx<S.modes.length-1 ? 'Suivant →' : 'Commencer l\'observation';
+  renderCrit();
+  go('crit');
+}
+function renderCrit(){
+  const mode=S.modes[critIdx];
+  $('#essVal').textContent=critDraft.essais; $('#besVal').textContent=critDraft.besoin;
+  $('#critMe').textContent='Côté de '+S.name;
+  buildTable($('#critTable'), z=>{
+    const on=critDraft.zones.includes(z);
+    return `<div class="zone ${on?'mk-viser':''}" data-z="${z}">${on?'<span class="mk">🎯</span>':''}<span class="c">${z[1]}</span></div>`;
+  });
+  $('#critTable').querySelectorAll('.zone').forEach(d=>d.addEventListener('pointerdown',e=>{
+    e.preventDefault(); const z=d.dataset.z, i=critDraft.zones.indexOf(z);
+    if(i>=0) critDraft.zones.splice(i,1); else critDraft.zones.push(z);
+    vibrate(); renderCrit();
+  }));
+  $('#critPreview').textContent = critDraft.zones.length
+    ? `Objectif : réussir ${critText(critDraft,mode)} sur ${critDraft.essais} essais.`
+    : 'Choisis au moins une zone, ou touche « Passer » pour observer sans critère.';
+}
+function critStep(key,delta){
+  const d=critDraft;
+  if(key==='essais'){ d.essais=Math.min(30,Math.max(1,d.essais+delta)); if(d.besoin>d.essais) d.besoin=d.essais; }
+  else d.besoin=Math.min(d.essais,Math.max(1,d.besoin+delta));
+  renderCrit();
+}
+$('#essMinus').onclick=()=>critStep('essais',-1); $('#essPlus').onclick=()=>critStep('essais',1);
+$('#besMinus').onclick=()=>critStep('besoin',-1); $('#besPlus').onclick=()=>critStep('besoin',1);
+function critAdvance(){
+  critIdx++;
+  if(critIdx<S.modes.length) openCrit(); else { cur=S.modes[0]; save(); openObs(); }
+}
+$('#critNext').onclick=()=>{
+  if(!critDraft.zones.length){ toast('Choisis au moins une zone (ou touche Passer)'); return; }
+  const mode=S.modes[critIdx];
+  S.crit=S.crit||{}; S.crit[mode]=critDraft;
+  S.marks=S.marks||{}; const mk=S.marks[mode]=S.marks[mode]||{};
+  Object.keys(mk).forEach(z=>{ if(mk[z]==='viser') delete mk[z]; });
+  critDraft.zones.forEach(z=>mk[z]='viser');
+  critAdvance();
+};
+$('#critSkip').onclick=()=>{ const mode=S.modes[critIdx]; if(S.crit) delete S.crit[mode]; critAdvance(); };
+$('#critBack').onclick=()=>{
+  if(critIdx>0){ critIdx--; openCrit(); }
+  else { dropIfEmpty(S); S=null; go('home'); }
+};
 
 /* ---------- Observation ---------- */
 function buildTable(el, renderZone){
@@ -436,7 +541,7 @@ function count(mode,z){ return (S.counts[mode]&&S.counts[mode][z])||0; }
 
 function openObs(){
   markMode='count'; S.marks=S.marks||{};
-  $('#obsName').textContent=`👀 ${S.name} · n°${S.num}`;
+  $('#obsName').textContent=`👀 ${S.name} · n°${S.num}${S.sit?' · 🏓':''}`;
   $('#meLabel').textContent='Côté de '+S.name;
   renderObs();
   go('obs');
@@ -450,6 +555,13 @@ function renderTabs(sel,sess,active,onPick){
 function renderObs(){
   renderTabs('#tabs',S,cur,m=>{cur=m;renderObs();});
   renderMarkbar();
+  const cp=critProgress(S,cur), cb=$('#critbar');
+  $('#s-obs').classList.toggle('hascrit',!!cp);
+  cb.style.display=cp?'':'none';
+  if(cp){
+    const st=cp.atteint?'✅ Objectif atteint !':(cp.done?'❌ Pas atteint cette fois':`Essai ${cp.faits+1}/${cp.cr.essais} · Réussis ${cp.ok}/${cp.cr.besoin}`);
+    cb.innerHTML=`<b>🎯 Réussir ${critText(cp.cr,cur)} sur ${cp.cr.essais} essais</b>${critDots(cp)}<div>${st}${cp.done?' · ouvre le bilan 👇':''}</div>`;
+  }
   const mk=marksOf(S,cur);
   buildTable($('#ptable'), z=>`<div class="zone ${mk[z]?'mk-'+mk[z]:''}" data-z="${z}"><span class="n">${z[1]}</span>${mk[z]?`<span class="mk">${mk[z]==='viser'?'🎯':'🚫'}</span>`:''}<span class="c">${count(cur,z)||''}</span></div>`);
   $('#ptable').querySelectorAll('.zone').forEach(d=>d.addEventListener('pointerdown',e=>{
@@ -507,6 +619,32 @@ $('#backObs').onclick=()=>{
   else go('history');
 };
 
+/* ---------- Critère de réussite ---------- */
+const NOUNS={service:'services',remise:'remises',gagnant:'points marqués',perdu:'points perdus',echange:'balles'};
+function critText(cr,mode){
+  const lst=cr.zones.map(z=>z[1]+(z[0]==='B'?' (ton côté)':''));
+  return `${cr.besoin} ${NOUNS[mode]||'balles'} dans ${lst.length>1?'les zones ':'la zone '}${lst.join(' ou ')}`;
+}
+function critProgress(sess,mode){
+  const cr=sess.crit&&sess.crit[mode]; if(!cr||!cr.zones||!cr.zones.length) return null;
+  const seq=(sess.log||[]).filter(e=>e[0]===mode).map(e=>e[1]).slice(0,cr.essais);
+  const ok=seq.filter(z=>cr.zones.includes(z)).length;
+  return {cr,seq,ok,faits:seq.length,done:seq.length>=cr.essais,atteint:ok>=cr.besoin};
+}
+function critDots(p){
+  let h='';
+  for(let i=0;i<p.cr.essais;i++){
+    const z=p.seq[i];
+    h+= z===undefined?'<span class="dot">○</span>':(p.cr.zones.includes(z)?'<span class="dot ok">●</span>':'<span class="dot ko">●</span>');
+  }
+  return `<div class="dots">${h}</div>`;
+}
+function critHtml(sess,mode){
+  const p=critProgress(sess,mode); if(!p) return '';
+  const st=p.atteint?'✅ atteint':(p.done?'❌ pas atteint cette fois':`⏳ en cours (${p.faits}/${p.cr.essais} essais)`);
+  return `<div class="card"><h3>🎯 Critère de réussite</h3><p style="margin:0 0 6px">Réussir ${critText(p.cr,mode)} sur ${p.cr.essais} essais.</p>${critDots(p)}<p style="margin:6px 0 0"><b>${p.ok} réussite${p.ok>1?'s':''} sur ${p.cr.besoin} demandées</b> — ${st}</p></div>`;
+}
+
 /* ---------- Conseils pour l'élève ---------- */
 function metrics(sess,mode){
   const c=sess.counts[mode]||{}, total=totalOf(c);
@@ -519,50 +657,54 @@ function metrics(sess,mode){
     g:sum(['A1','A4','B1','B4']), m:sum(['A2','A5','B2','B5']), d:sum(['A3','A6','B3','B6']),
     hasV:zV.length>0, hasE:zE.length>0, nV:sum(zV), nE:sum(zE)};
 }
-function advice(sess,mode,prev,nextNum){
-  const x=metrics(sess,mode), n=sess.name, good=[], work=[], chal=[];
-  if(x.total<5) return {good,work:['Pas assez de balles notées pour conclure : note au moins 10 balles.'],chal};
+function advice(sess,mode,prev){
+  const x=metrics(sess,mode), good=[], work=[];
+  if(x.total<5) return {good,work:['Pas assez de balles notées pour conclure : note au moins 10 balles.']};
   const pIn=pct(x.inT,x.total), pF=pct(x.faults,x.total);
   const lat=[['à gauche',x.g],['au milieu',x.m],['à droite',x.d]].sort((a,b)=>b[1]-a[1]);
   const latTop=x.inT?pct(lat[0][1],x.inT):0;
   const pV=pct(x.nV,x.total), pE=pct(x.nE,x.total);
+  const cp=critProgress(sess,mode);
   // points forts
-  if(pIn>=85 && pF<=10) good.push(`${n} met presque toutes ses balles sur la table (${pIn}%) : très bonne régularité.`);
-  else if(pIn>=70) good.push(`${n} met la majorité de ses balles sur la table (${pIn}%).`);
-  if(x.inT>=8 && latTop<=45) good.push('Bon placement : les balles sont bien réparties à gauche, au milieu et à droite.');
-  if(mode==='service' && x.inT>=8 && pct(x.lon,x.inT)>=30 && pct(x.cou,x.inT)>=30) good.push('Services variés : des courts et des longs, difficile à deviner.');
-  if(x.hasV && pV>=50) good.push(`Objectif atteint : ${pV}% des balles dans les zones visées 🎯.`);
+  if(cp && cp.atteint) good.push(`Critère réussi : ${cp.ok} ${NOUNS[mode]||'balles'} sur ${cp.cr.essais} essais dans la zone visée ✅.`);
+  if(pIn>=85 && pF<=10) good.push(`Tu mets presque toutes tes balles sur la table (${pIn}%) : très bonne régularité.`);
+  else if(pIn>=70) good.push(`Tu mets la majorité de tes balles sur la table (${pIn}%).`);
+  if(x.inT>=8 && latTop<=45) good.push('Bon placement : tes balles sont bien réparties à gauche, au milieu et à droite.');
+  if(mode==='service' && x.inT>=8 && pct(x.lon,x.inT)>=30 && pct(x.cou,x.inT)>=30) good.push('Tes services sont variés : courts et longs, ton adversaire ne peut pas deviner.');
+  if(x.hasV && pV>=50) good.push(`${pV}% de tes balles sont tombées dans les zones visées 🎯.`);
   if(x.hasE && x.nE===0) good.push('Aucune balle dans les zones à éviter 🚫.');
   if(prev && prev.counts[mode] && totalOf(prev.counts[mode])>=5){
     const q=metrics(prev,mode), qF=pct(q.faults,q.total), qIn=pct(q.inT,q.total);
-    if(qF-pF>=5) good.push(`Progrès : moins de fautes que lors de l'observation n°${prev.num} (${qF}% → ${pF}%).`);
-    if(pIn-qIn>=5) good.push(`Progrès : plus de balles sur la table que lors de l'observation n°${prev.num} (${qIn}% → ${pIn}%).`);
+    if(qF-pF>=5) good.push(`Tu progresses : moins de fautes que lors de l'observation n°${prev.num} (${qF}% → ${pF}%).`);
+    if(pIn-qIn>=5) good.push(`Tu progresses : plus de balles sur la table que lors de l'observation n°${prev.num} (${qIn}% → ${pIn}%).`);
   }
   // à travailler
+  if(cp && cp.done && !cp.atteint) work.push(`Tu dois encore travailler ton critère : ${cp.ok} réussite${cp.ok>1?'s':''} sur ${cp.cr.besoin} demandées.`);
   if(pF>=25) work.push(x.filet>=x.out
-    ? `Beaucoup de balles au filet (${pF}% de fautes) : jouer avec plus de hauteur, relever un peu la balle.`
-    : `Beaucoup de balles qui sortent de la table (${pF}% de fautes) : moins de force et un geste plus court et contrôlé.`);
-  else if(pF>=15) work.push(`Encore ${pF}% de fautes à réduire (${x.filet} au filet, ${x.out} hors table).`);
-  if(x.inT>=8 && latTop>=60) work.push(`Placement trop prévisible : ${latTop}% des balles vont ${lat[0][0]}. L'adversaire peut s'y attendre.`);
+    ? `Tu dois jouer avec plus de hauteur : beaucoup de balles au filet (${pF}% de fautes).`
+    : `Tu dois mettre moins de force et faire un geste plus court : beaucoup de balles sortent de la table (${pF}% de fautes).`);
+  else if(pF>=15) work.push(`Tu dois réduire tes fautes : encore ${pF}% (${x.filet} au filet, ${x.out} hors table).`);
+  if(x.inT>=8 && latTop>=60) work.push(`Tu dois varier ton placement : ${latTop}% de tes balles vont ${lat[0][0]}, ton adversaire peut s'y attendre.`);
   if(mode==='service' && x.inT>=8){
-    if(pct(x.lon,x.inT)>=70) work.push('Services presque tous longs : essayer aussi des services courts pour surprendre.');
-    else if(pct(x.cou,x.inT)>=70) work.push('Services presque tous courts : essayer aussi des services longs.');
+    if(pct(x.lon,x.inT)>=70) work.push('Tu dois aussi faire des services courts pour surprendre.');
+    else if(pct(x.cou,x.inT)>=70) work.push('Tu dois aussi faire des services longs pour surprendre.');
   }
-  if(x.hasV && pV<30) work.push(`Seulement ${pV}% des balles dans les zones visées : fixer la cible du regard avant de jouer.`);
-  if(x.hasE && pE>=20) work.push(`${pE}% des balles dans les zones à éviter : changer de placement.`);
-  if(x.total<10) work.push(`Seulement ${x.total} balles notées : refaire une observation pour confirmer.`);
-  // défis pour la prochaine observation
-  if(pF>=15) chal.push(`Observation n°${nextNum} : passer sous ${Math.max(5,Math.round(pF/2))}% de fautes.`);
-  if(x.inT>=8 && latTop>=60) chal.push(`Observation n°${nextNum} : pas plus de 50% des balles du même côté.`);
-  if(x.hasV && pV<80) chal.push(`Observation n°${nextNum} : atteindre ${Math.min(100,pV+20)}% dans les zones visées.`);
-  if(!chal.length) chal.push(`Garder ce niveau et se donner une cible : ajouter une zone à viser 🎯 pour l'observation n°${nextNum}.`);
+  if(x.hasV && pV<30) work.push(`Tu dois mieux viser : seulement ${pV}% de tes balles dans les zones visées. Fixe la cible du regard avant de jouer.`);
+  if(x.hasE && pE>=20) work.push(`Tu dois éviter les zones interdites : ${pE}% de tes balles y sont tombées.`);
+  if(x.total<10) work.push(`Seulement ${x.total} balles notées : refais une observation pour confirmer.`);
   if(!good.length) good.push('Premiers repères posés : on sait maintenant d\'où partir pour progresser.');
-  return {good,work,chal:chal.slice(0,2)};
+  return {good,work};
 }
-/* ---------- 3 situations d'entraînement ---------- */
-function situations(sess,mode){
+function adviceHtml(a){
+  const blk=(cls,title,list)=>list.length?`<div class="sum ${cls}"><b>${title}</b><ul>${list.map(t=>`<li>${t}</li>`).join('')}</ul></div>`:'';
+  return `<div class="card"><h3>📝 En résumé</h3>${blk('good','✅ Ce que tu fais bien',a.good)}${blk('work','🔧 Ce que tu dois travailler',a.work)}</div>`;
+}
+
+/* ---------- Une situation selon le niveau ---------- */
+const LEVELS={1:'Je consolide',2:'Je varie',3:'Je me challenge'};
+function situationRaw(sess,mode){
   const x=metrics(sess,mode);
-  if(x.total<5) return [];
+  if(x.total<5) return null;
   const c=sess.counts[mode]||{}, mk=marksOf(sess,mode);
   const pF=pct(x.faults,x.total), pV=pct(x.nV,x.total);
   const lat=[['à gauche',x.g],['au milieu',x.m],['à droite',x.d]].sort((a,b)=>b[1]-a[1]);
@@ -571,46 +713,44 @@ function situations(sess,mode){
   const least=['A1','A2','A3','A4','A5','A6'].sort((a,b)=>(c[a]||0)-(c[b]||0))[0];
   const cible = zV.length ? (zV.length>1?'les zones ':'la zone ')+zV.map(z=>z[1]).join(' et ')+' (côté adversaire)' : `la zone ${least[1]} (côté adversaire)`;
   const cibleLongue = zV.length ? cible : cible+', la moins utilisée jusqu\'ici';
+  const lopsided = x.inT>=8 && latTop>=60;
   const imb = mode==='service' && x.inT>=8 && (pct(x.lon,x.inT)>=70 || pct(x.cou,x.inT)>=70);
-  const out=[];
-  // 1. consolider le point faible
-  if(pF>=15) out.push({tier:'1 · Je consolide',icon:'🔁',title:'Le sans-faute',
-    setup:'À deux, en diagonale, avec des balles lentes et hautes. Un joueur renvoie, l\'autre compte à voix haute.',
-    goal:`Enchaîner ${pF>=25?5:8} échanges de suite sans faute. À la première faute, on repart de zéro. (Aujourd'hui : ${pF}% de fautes.)`});
-  else if(x.inT>=8 && latTop>=60) out.push({tier:'1 · Je consolide',icon:'↔️',title:'Les trois couloirs',
-    setup:'Partage ta table en trois couloirs (gauche, milieu, droite) avec du scotch ou des gobelets.',
-    goal:`Sur 10 balles, en mettre au moins 3 dans chaque couloir, surtout ${rare} (peu utilisé : ${pct(lat[2][1],x.inT)}%).`});
-  else out.push({tier:'1 · Je consolide',icon:'🔁',title:'La régularité sous pression',
-    setup:'À deux, en diagonale, rythme un peu plus rapide que d\'habitude.',
-    goal:'Sur 20 balles, garder au moins 18 balles sur la table. Compte-les avec ton partenaire.'});
-  // 2. varier / viser
-  if(imb) out.push({tier:'2 · Je varie',icon:'📏',title:'Court / long',
-    setup:'Fais 10 services en alternant : un court (2 rebonds près du filet) puis un long (au fond de la table).',
-    goal:'Réussir 4 services courts et 4 longs sur 10. Le partenaire essaie de deviner lequel arrive.'});
-  else out.push({tier:'2 · Je varie',icon:'🎯',title:'La cible',
-    setup:`Pose un gobelet ou une feuille dans ${cibleLongue}.`,
-    goal:`Sur 10 balles, en mettre au moins ${x.hasV?Math.min(8,Math.max(3,Math.ceil((pV+20)/10))):3} dans la cible${x.hasV?` (aujourd'hui : ${pV}%)`:''}.`});
-  // 3. se challenger : un jeu
+  const allA=['A1','A2','A3','A4','A5','A6'];
+  const colZ={'à gauche':['A1','A4'],'au milieu':['A2','A5'],'à droite':['A3','A6']};
+  const tz = zV.length ? zV : [least];
+  // niveau 1 : trop de fautes ; niveau 2 : régulier mais à affiner ; niveau 3 : solide
+  const nSF = pF>=40?5:8;
+  if(pF>=25) return {level:1,icon:'🔁',title:'Le sans-faute',crit:{essais:nSF,besoin:nSF,zones:allA},
+    setup:'À deux, en diagonale, avec des balles lentes et hautes. Ton partenaire renvoie, tu comptes à voix haute.',
+    goal:`Enchaîner ${nSF} échanges de suite sans faute. À la première faute, tu repars de zéro. (Aujourd'hui : ${pF}% de fautes.)`};
+  if(pF>=10 || lopsided || (x.hasV && pV<50)){
+    if(lopsided) return {level:2,icon:'↔️',title:'Les trois couloirs',crit:{essais:10,besoin:3,zones:colZ[rare]},
+      setup:'Partage ta table en trois couloirs (gauche, milieu, droite) avec du scotch ou des gobelets.',
+      goal:`Sur 10 balles, mets-en au moins 3 dans chaque couloir, surtout ${rare} (peu utilisé : ${pct(lat[2][1],x.inT)}%).`};
+    if(imb) return {level:2,icon:'📏',title:'Court / long',crit:{essais:10,besoin:4,zones:(pct(x.lon,x.inT)>=70?['A4','A5','A6']:['A1','A2','A3'])},
+      setup:'Fais 10 services en alternant : un court (2 rebonds près du filet) puis un long (au fond de la table).',
+      goal:'Réussir 4 services courts et 4 longs sur 10. Ton partenaire essaie de deviner lequel arrive.'};
+    return {level:2,icon:'🎯',title:'La cible',crit:{essais:10,besoin:(x.hasV?Math.min(8,Math.max(3,Math.ceil((pV+20)/10))):3),zones:tz},
+      setup:`Pose un gobelet ou une feuille dans ${cibleLongue}.`,
+      goal:`Sur 10 balles, mets-en au moins ${x.hasV?Math.min(8,Math.max(3,Math.ceil((pV+20)/10))):3} dans la cible${x.hasV?` (aujourd'hui : ${pV}%)`:''}.`};
+  }
   const games={
-    service:{icon:'🏓',title:'Service gagnant',setup:'Mini-match en 5 points, chacun sert 2 fois de suite.',goal:`Un service réussi dans ${cible} vaut 2 points, un service faute retire 1 point. Qui gagne ?`},
-    remise:{icon:'↩️',title:'Le retour surprise',setup:'Ton partenaire sert (court ou long), toi tu remets.',goal:`10 retours : marquer 1 point à chaque retour placé dans ${cible}, 0 s'il est faute.`},
-    gagnant:{icon:'⚡',title:'Mini-match à thème',setup:'Match en 7 points en simple.',goal:`Un point gagné en visant ${cible} compte double. Objectif : au moins 2 points doubles.`},
-    perdu:{icon:'🛡️',title:'Le mur',setup:'Ton partenaire attaque, toi tu défends en renvoyant toutes les balles.',goal:'Tenir 8 balles de suite en défense, puis on échange les rôles.'},
-    echange:{icon:'⚡',title:'Échange à contrainte',setup:'Échange libre en diagonale puis en ligne.',goal:`À chaque balle, annoncer d'avance où tu vises. Marquer 1 point à chaque fois que tu as raison (zone ${least[1]} comprise).`}
+    service:{icon:'🏓',title:'Service gagnant',crit:{essais:5,besoin:3,zones:tz},setup:'Mini-match en 5 points, chacun sert 2 fois de suite.',goal:`Un service réussi dans ${cible} vaut 2 points, un service faute retire 1 point. Qui gagne ?`},
+    remise:{icon:'↩️',title:'Le retour surprise',crit:{essais:10,besoin:5,zones:tz},setup:'Ton partenaire sert (court ou long), toi tu remets.',goal:`10 retours : marque 1 point à chaque retour placé dans ${cible}, 0 s'il est faute.`},
+    gagnant:{icon:'⚡',title:'Mini-match à thème',crit:{essais:7,besoin:2,zones:tz},setup:'Match en 7 points en simple.',goal:`Un point gagné en visant ${cible} compte double. Objectif : au moins 2 points doubles.`},
+    perdu:{icon:'🛡️',title:'Le mur',crit:{essais:8,besoin:8,zones:allA},setup:'Ton partenaire attaque, toi tu défends en renvoyant toutes les balles.',goal:'Tiens 8 balles de suite en défense, puis on échange les rôles.'},
+    echange:{icon:'⚡',title:'Échange à contrainte',crit:{essais:10,besoin:4,zones:tz},setup:'Échange libre en diagonale puis en ligne.',goal:`Annonce d'avance où tu vises à chaque balle. 1 point à chaque fois que tu as raison.`}
   };
-  out.push(Object.assign({tier:'3 · Je me challenge'},games[mode]||games.echange));
-  return out;
+  return Object.assign({level:3},games[mode]||games.echange);
 }
-function sitHtml(list){
-  if(!list.length) return '';
-  return `<div class="card"><h3>🏓 3 situations pour progresser</h3>${list.map(s=>`<div class="sit"><span class="badge">${s.tier}</span><b>${s.icon} ${esc(s.title)}</b><p><b style="display:inline;font-size:14px">Mise en place :</b> ${s.setup}</p><p><b style="display:inline;font-size:14px">Objectif :</b> ${s.goal}</p></div>`).join('')}</div>`;
+function situation(sess,mode){ const s=situationRaw(sess,mode); if(s) s.mode=mode; return s; }
+function sitHtml(s){
+  if(!s) return '';
+  return `<div class="card"><h3>🏓 Ta situation pour progresser</h3><div class="sit"><span class="badge">Niveau ${s.level} · ${LEVELS[s.level]}</span><b>${s.icon} ${esc(s.title)}</b><p><b style="display:inline;font-size:14px">Mise en place :</b> ${s.setup}</p><p><b style="display:inline;font-size:14px">Objectif :</b> ${s.goal}</p></div>
+    <button class="btn" id="launchSit" style="margin-top:10px;width:100%">▶️ Lancer la situation</button></div>`;
 }
 const prevOf = sess => { const sib=siblings(sess), i=sib.indexOf(sess); return i>0?sib[i-1]:null; };
 const nextNumOf = sess => siblings(sess).reduce((a,s)=>Math.max(a,s.num||0),0)+1;
-function adviceHtml(a,name){
-  const blk=(cls,title,list)=>list.length?`<div class="sum ${cls}"><b>${title}</b><ul>${list.map(t=>`<li>${t}</li>`).join('')}</ul></div>`:'';
-  return `<div class="card"><h3>📝 En résumé pour ${esc(name)}</h3>${blk('good','✅ Points forts',a.good)}${blk('work','🔧 À travailler',a.work)}${blk('chal','🏆 Défi',a.chal)}</div>`;
-}
 
 /* ---------- Bilan ---------- */
 function renderBilan(){
@@ -685,10 +825,11 @@ function renderBilan(){
     const diff=pct(inTable,total)-pIn;
     tips.push(`Par rapport à l'observation n°${prev.num} : ${diff>0?'+':''}${diff} points de balles sur la table, fautes ${pf}% → ${cf}%.`);
   }
-  const adv=advice(sess,bMode,prev,nextNum);
+  const adv=advice(sess,bMode,prev);
   $('#bilanBody').innerHTML = `
-    ${adviceHtml(adv,sess.name)}
-    ${sitHtml(situations(sess,bMode))}
+    ${adviceHtml(adv)}
+    ${critHtml(sess,bMode)}
+    ${sitHtml(situation(sess,bMode))}
     <div class="kpis">
       <div class="kpi"><b>${total}</b><span>balles notées</span></div>
       <div class="kpi"><b style="color:var(--ok)">${pct(inTable,total)}%</b><span>sur la table</span></div>
@@ -716,12 +857,13 @@ function renderBilan(){
       <p>La table est vue de dessus. <b>Zones 1, 2, 3</b> : fond de table (balles longues). <b>Zones 4, 5, 6</b> : près du filet (balles courtes). Gauche, milieu et droite se lisent comme à l'écran. Plus une zone est jaune, plus il y a de balles dedans. 🎯 = zone visée, 🚫 = zone à éviter.</p></details>
   `;
   buildTable($('#heat'),heat);
+  const ls=$('#launchSit'); if(ls) ls.onclick=()=>addSituation(viewing,bMode);
   const ta=$('#comment');
   if(ta) ta.oninput=()=>{ viewing.comment=ta.value; viewing.sent=false; save(); $('#send').textContent='📨 Envoyer au professeur'; };
 }
 $('#nextObs').onclick=()=>{
   const v=viewing;
-  newSession(v.name, v.modes, v.marks);
+  newSession(v.name, v.modes, v.marks, v.crit);
   toast(`Observation n°${S.num} sur ${S.name}`);
 };
 function summaryText(sess){
@@ -731,11 +873,13 @@ function summaryText(sess){
     const m=MODES.find(x=>x.id===id), c=sess.counts[id]||{}, t=totalOf(c);
     out+=`\n${m.icon} ${m.t} (${t} balles)\n`;
     if(!t) return;
-    const a=advice(sess,id,prevOf(sess),nextNumOf(sess));
+    const a=advice(sess,id,prevOf(sess));
+    const cp=critProgress(sess,id);
+    if(cp) out+=`  🎯 Critère : ${critText(cp.cr,id)} sur ${cp.cr.essais} essais → ${cp.ok}/${cp.cr.besoin} ${cp.atteint?'✅':(cp.done?'❌':'⏳')}\n`;
     a.good.forEach(l=>out+=`  ✅ ${l.replace(/<[^>]+>/g,'')}\n`);
     a.work.forEach(l=>out+=`  🔧 ${l.replace(/<[^>]+>/g,'')}\n`);
-    a.chal.forEach(l=>out+=`  🏆 ${l.replace(/<[^>]+>/g,'')}\n`);
-    situations(sess,id).forEach(s=>out+=`  🏓 ${s.title} — ${s.goal}\n`);
+    const sit=situation(sess,id);
+    if(sit) out+=`  🏓 Ta situation (niveau ${sit.level}) : ${sit.title} — ${sit.goal}\n`;
     ['A','B'].forEach(s=>{
       out+=`  ${s==='A'?'Côté adversaire':'Côté '+sess.name} : `+[1,2,3,4,5,6].map(n=>`z${n} ${pct(c[s+n]||0,t)}%`).join(' · ')+'\n';
     });
@@ -761,6 +905,10 @@ function sheetRows(sess){
     ZS.forEach(z=>row[(z[0]==='A'?'adv_z':'eleve_z')+z[1]]=c[z]||0);
     row.filet=c.filet||0; row.hors_table=c.out||0;
     const mk=marksOf(sess,id), zv=Object.keys(mk).filter(z=>mk[z]==='viser'), ze=Object.keys(mk).filter(z=>mk[z]==='eviter');
+    const cp=critProgress(sess,id);
+    row.critere = cp ? `${critText(cp.cr,id)} sur ${cp.cr.essais} essais` : '';
+    row.reussites = cp ? `${cp.ok}/${cp.cr.besoin}` : '';
+    row.atteint = cp ? (cp.atteint?'oui':(cp.done?'non':'en cours')) : '';
     row.commentaire = sess.comment||'';
     row.pct_vise = zv.length ? pct(zv.reduce((a,z)=>a+(c[z]||0),0),t) : '';
     row.pct_evite = ze.length ? pct(ze.reduce((a,z)=>a+(c[z]||0),0),t) : '';
@@ -790,6 +938,37 @@ $('#delObs').onclick=()=>{
   else go(mySessions().length?'history':'home');
 };
 
+/* ---------- Situation 2 (prescrite d'après le bilan) ---------- */
+function addSituation(sess,mode){
+  const sit=situation(sess,mode); if(!sit) return;
+  const exist=D.situations.find(t=>t.userId===D.current && t.sessionId===sess.id && t.mode===mode);
+  if(!exist){
+    D.situations.push({id:uid(),userId:D.current,forName:sess.name,sessionId:sess.id,date:new Date().toISOString(),
+      mode,level:sit.level,icon:sit.icon,title:sit.title,setup:sit.setup,goal:sit.goal,crit:sit.crit});
+    save();
+  }
+  toast(exist?'Cette situation est déjà dans « Situation 2 »':'Situation ajoutée à « Situation 2 »');
+  go('home');
+}
+function renderSit(){
+  const list=mySituations(), el=$('#sitList');
+  if(!list.length){ el.innerHTML='<p class="sub">Aucune situation prescrite. Ouvre un bilan et touche « ▶️ Lancer la situation ».</p>'; return; }
+  el.innerHTML=list.map(t=>`<div class="card grp"><div class="grphead"><span class="badge" style="display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:99px;background:color-mix(in srgb,var(--table) 14%,var(--card));color:var(--table)">Pour ${esc(t.forName)} · niveau ${t.level} · ${LEVELS[t.level]}</span><button class="pill" data-delsit="${t.id}" aria-label="Supprimer">🗑</button></div>
+    <div class="sit"><b>${t.icon} ${esc(t.title)}</b>
+    <p><b style="display:inline;font-size:14px">Mise en place :</b> ${t.setup}</p>
+    <p><b style="display:inline;font-size:14px">Objectif :</b> ${t.goal}</p>
+    <p style="color:var(--muted)">Critère suivi : ${critText(t.crit,t.mode)} sur ${t.crit.essais} essais.</p></div>
+    <button class="btn" data-startsit="${t.id}" style="width:100%;margin-top:6px">▶️ Lancer la situation</button></div>`).join('');
+  el.querySelectorAll('[data-startsit]').forEach(b=>b.onclick=()=>{
+    const t=D.situations.find(x=>x.id===b.dataset.startsit);
+    newSession(t.forName,[t.mode],{},{[t.mode]:t.crit},t.title);
+  });
+  el.querySelectorAll('[data-delsit]').forEach(b=>b.onclick=()=>{
+    if(!confirm('Supprimer cette situation ?')) return;
+    D.situations=D.situations.filter(x=>x.id!==b.dataset.delsit); save(); renderSit(); renderHome();
+  });
+}
+
 /* ---------- Historique ---------- */
 function renderHistory(){
   const u=user(); if(!u) return;
@@ -803,7 +982,7 @@ function renderHistory(){
   $('#hist').innerHTML=[...groups.values()].map(list=>{
     const ord=list.slice().sort((a,b)=>a.num-b.num);
     return `<div class="card grp"><div class="grphead"><h3>👀 ${esc(ord[0].name)}</h3><button class="pill" data-new="${esc(ord[0].name)}">➕ Nouvelle</button></div>
-      <ul class="hist">${ord.map(s=>`<li><div><b>Observation n°${s.num}</b><br><small>${new Date(s.date).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})} · ${s.modes.map(m=>MODES.find(x=>x.id===m).t).join(', ')} · ${sessTotal(s)} balles${s.sent?' · ✅ envoyé':''}</small></div>
+      <ul class="hist">${ord.map(s=>`<li><div><b>Observation n°${s.num}</b>${s.sit?` · 🏓 ${esc(s.sit)}`:''}<br><small>${new Date(s.date).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})} · ${s.modes.map(m=>MODES.find(x=>x.id===m).t).join(', ')} · ${sessTotal(s)} balles${s.sent?' · ✅ envoyé':''}</small></div>
         <button class="pill" data-open="${s.id}">Voir</button><button class="pill" data-del="${s.id}" aria-label="Supprimer">🗑</button></li>`).join('')}</ul></div>`;
   }).join('');
   $('#hist').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{
@@ -811,7 +990,7 @@ function renderHistory(){
   });
   $('#hist').querySelectorAll('[data-new]').forEach(b=>b.onclick=()=>{
     const last=all.filter(s=>key(s.name)===key(b.dataset.new)).sort((a,c)=>c.num-a.num)[0];
-    newSession(last.name,last.modes,last.marks);
+    newSession(last.name,last.modes,last.marks,last.crit);
   });
   $('#hist').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     const s=D.sessions.find(x=>String(x.id)===b.dataset.del);
