@@ -136,6 +136,21 @@ input[type=text]{width:100%;padding:14px;border-radius:12px;border:1px solid var
 .zone.ol-eviter{box-shadow:inset 0 0 0 3px #111}
 .zone.ol-viser .mk,.zone.ol-eviter .mk{font-size:16px}
 .hint{text-align:center;font-size:14px;font-weight:600;color:var(--ink);margin-top:6px}
+.sum{margin-bottom:10px}
+.sum b{display:block;font-size:15px}
+.sum ul{margin:4px 0 0;padding-left:20px}
+.sum li{margin:4px 0;font-size:15px}
+.sum.good b{color:var(--ok)}.sum.work b{color:var(--accent)}.sum.chal b{color:var(--table)}
+@media (prefers-color-scheme: dark){.sum.chal b{color:#6fb1ff}}
+textarea{width:100%;min-height:84px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;resize:vertical}
+details.card summary{cursor:pointer;font-weight:700}
+details.card p{margin:8px 0 0;font-size:14px;color:var(--muted)}
+.sit{padding:10px 0;border-top:1px solid var(--line)}
+.sit:first-of-type{border-top:0}
+.sit .badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:99px;background:color-mix(in srgb,var(--table) 14%,var(--card));color:var(--table);margin-bottom:4px}
+@media (prefers-color-scheme: dark){.sit .badge{color:#6fb1ff}}
+.sit b{display:block;font-size:16px}
+.sit p{margin:4px 0 0;font-size:14px}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .top .pill{flex:none}
 </style>
@@ -492,6 +507,111 @@ $('#backObs').onclick=()=>{
   else go('history');
 };
 
+/* ---------- Conseils pour l'élève ---------- */
+function metrics(sess,mode){
+  const c=sess.counts[mode]||{}, total=totalOf(c);
+  const sum=a=>a.reduce((s,z)=>s+(c[z]||0),0);
+  const zs=['A','B'].flatMap(s=>[1,2,3,4,5,6].map(n=>s+n));
+  const mk=marksOf(sess,mode);
+  const zV=Object.keys(mk).filter(z=>mk[z]==='viser'), zE=Object.keys(mk).filter(z=>mk[z]==='eviter');
+  return {total, inT:sum(zs), filet:c.filet||0, out:c.out||0, faults:(c.filet||0)+(c.out||0),
+    lon:sum(['A1','A2','A3','B1','B2','B3']), cou:sum(['A4','A5','A6','B4','B5','B6']),
+    g:sum(['A1','A4','B1','B4']), m:sum(['A2','A5','B2','B5']), d:sum(['A3','A6','B3','B6']),
+    hasV:zV.length>0, hasE:zE.length>0, nV:sum(zV), nE:sum(zE)};
+}
+function advice(sess,mode,prev,nextNum){
+  const x=metrics(sess,mode), n=sess.name, good=[], work=[], chal=[];
+  if(x.total<5) return {good,work:['Pas assez de balles notées pour conclure : note au moins 10 balles.'],chal};
+  const pIn=pct(x.inT,x.total), pF=pct(x.faults,x.total);
+  const lat=[['à gauche',x.g],['au milieu',x.m],['à droite',x.d]].sort((a,b)=>b[1]-a[1]);
+  const latTop=x.inT?pct(lat[0][1],x.inT):0;
+  const pV=pct(x.nV,x.total), pE=pct(x.nE,x.total);
+  // points forts
+  if(pIn>=85 && pF<=10) good.push(`${n} met presque toutes ses balles sur la table (${pIn}%) : très bonne régularité.`);
+  else if(pIn>=70) good.push(`${n} met la majorité de ses balles sur la table (${pIn}%).`);
+  if(x.inT>=8 && latTop<=45) good.push('Bon placement : les balles sont bien réparties à gauche, au milieu et à droite.');
+  if(mode==='service' && x.inT>=8 && pct(x.lon,x.inT)>=30 && pct(x.cou,x.inT)>=30) good.push('Services variés : des courts et des longs, difficile à deviner.');
+  if(x.hasV && pV>=50) good.push(`Objectif atteint : ${pV}% des balles dans les zones visées 🎯.`);
+  if(x.hasE && x.nE===0) good.push('Aucune balle dans les zones à éviter 🚫.');
+  if(prev && prev.counts[mode] && totalOf(prev.counts[mode])>=5){
+    const q=metrics(prev,mode), qF=pct(q.faults,q.total), qIn=pct(q.inT,q.total);
+    if(qF-pF>=5) good.push(`Progrès : moins de fautes que lors de l'observation n°${prev.num} (${qF}% → ${pF}%).`);
+    if(pIn-qIn>=5) good.push(`Progrès : plus de balles sur la table que lors de l'observation n°${prev.num} (${qIn}% → ${pIn}%).`);
+  }
+  // à travailler
+  if(pF>=25) work.push(x.filet>=x.out
+    ? `Beaucoup de balles au filet (${pF}% de fautes) : jouer avec plus de hauteur, relever un peu la balle.`
+    : `Beaucoup de balles qui sortent de la table (${pF}% de fautes) : moins de force et un geste plus court et contrôlé.`);
+  else if(pF>=15) work.push(`Encore ${pF}% de fautes à réduire (${x.filet} au filet, ${x.out} hors table).`);
+  if(x.inT>=8 && latTop>=60) work.push(`Placement trop prévisible : ${latTop}% des balles vont ${lat[0][0]}. L'adversaire peut s'y attendre.`);
+  if(mode==='service' && x.inT>=8){
+    if(pct(x.lon,x.inT)>=70) work.push('Services presque tous longs : essayer aussi des services courts pour surprendre.');
+    else if(pct(x.cou,x.inT)>=70) work.push('Services presque tous courts : essayer aussi des services longs.');
+  }
+  if(x.hasV && pV<30) work.push(`Seulement ${pV}% des balles dans les zones visées : fixer la cible du regard avant de jouer.`);
+  if(x.hasE && pE>=20) work.push(`${pE}% des balles dans les zones à éviter : changer de placement.`);
+  if(x.total<10) work.push(`Seulement ${x.total} balles notées : refaire une observation pour confirmer.`);
+  // défis pour la prochaine observation
+  if(pF>=15) chal.push(`Observation n°${nextNum} : passer sous ${Math.max(5,Math.round(pF/2))}% de fautes.`);
+  if(x.inT>=8 && latTop>=60) chal.push(`Observation n°${nextNum} : pas plus de 50% des balles du même côté.`);
+  if(x.hasV && pV<80) chal.push(`Observation n°${nextNum} : atteindre ${Math.min(100,pV+20)}% dans les zones visées.`);
+  if(!chal.length) chal.push(`Garder ce niveau et se donner une cible : ajouter une zone à viser 🎯 pour l'observation n°${nextNum}.`);
+  if(!good.length) good.push('Premiers repères posés : on sait maintenant d\'où partir pour progresser.');
+  return {good,work,chal:chal.slice(0,2)};
+}
+/* ---------- 3 situations d'entraînement ---------- */
+function situations(sess,mode){
+  const x=metrics(sess,mode);
+  if(x.total<5) return [];
+  const c=sess.counts[mode]||{}, mk=marksOf(sess,mode);
+  const pF=pct(x.faults,x.total), pV=pct(x.nV,x.total);
+  const lat=[['à gauche',x.g],['au milieu',x.m],['à droite',x.d]].sort((a,b)=>b[1]-a[1]);
+  const latTop=x.inT?pct(lat[0][1],x.inT):0, rare=lat[2][0];
+  const zV=Object.keys(mk).filter(z=>mk[z]==='viser'&&z[0]==='A');
+  const least=['A1','A2','A3','A4','A5','A6'].sort((a,b)=>(c[a]||0)-(c[b]||0))[0];
+  const cible = zV.length ? (zV.length>1?'les zones ':'la zone ')+zV.map(z=>z[1]).join(' et ')+' (côté adversaire)' : `la zone ${least[1]} (côté adversaire)`;
+  const cibleLongue = zV.length ? cible : cible+', la moins utilisée jusqu\'ici';
+  const imb = mode==='service' && x.inT>=8 && (pct(x.lon,x.inT)>=70 || pct(x.cou,x.inT)>=70);
+  const out=[];
+  // 1. consolider le point faible
+  if(pF>=15) out.push({tier:'1 · Je consolide',icon:'🔁',title:'Le sans-faute',
+    setup:'À deux, en diagonale, avec des balles lentes et hautes. Un joueur renvoie, l\'autre compte à voix haute.',
+    goal:`Enchaîner ${pF>=25?5:8} échanges de suite sans faute. À la première faute, on repart de zéro. (Aujourd'hui : ${pF}% de fautes.)`});
+  else if(x.inT>=8 && latTop>=60) out.push({tier:'1 · Je consolide',icon:'↔️',title:'Les trois couloirs',
+    setup:'Partage ta table en trois couloirs (gauche, milieu, droite) avec du scotch ou des gobelets.',
+    goal:`Sur 10 balles, en mettre au moins 3 dans chaque couloir, surtout ${rare} (peu utilisé : ${pct(lat[2][1],x.inT)}%).`});
+  else out.push({tier:'1 · Je consolide',icon:'🔁',title:'La régularité sous pression',
+    setup:'À deux, en diagonale, rythme un peu plus rapide que d\'habitude.',
+    goal:'Sur 20 balles, garder au moins 18 balles sur la table. Compte-les avec ton partenaire.'});
+  // 2. varier / viser
+  if(imb) out.push({tier:'2 · Je varie',icon:'📏',title:'Court / long',
+    setup:'Fais 10 services en alternant : un court (2 rebonds près du filet) puis un long (au fond de la table).',
+    goal:'Réussir 4 services courts et 4 longs sur 10. Le partenaire essaie de deviner lequel arrive.'});
+  else out.push({tier:'2 · Je varie',icon:'🎯',title:'La cible',
+    setup:`Pose un gobelet ou une feuille dans ${cibleLongue}.`,
+    goal:`Sur 10 balles, en mettre au moins ${x.hasV?Math.min(8,Math.max(3,Math.ceil((pV+20)/10))):3} dans la cible${x.hasV?` (aujourd'hui : ${pV}%)`:''}.`});
+  // 3. se challenger : un jeu
+  const games={
+    service:{icon:'🏓',title:'Service gagnant',setup:'Mini-match en 5 points, chacun sert 2 fois de suite.',goal:`Un service réussi dans ${cible} vaut 2 points, un service faute retire 1 point. Qui gagne ?`},
+    remise:{icon:'↩️',title:'Le retour surprise',setup:'Ton partenaire sert (court ou long), toi tu remets.',goal:`10 retours : marquer 1 point à chaque retour placé dans ${cible}, 0 s'il est faute.`},
+    gagnant:{icon:'⚡',title:'Mini-match à thème',setup:'Match en 7 points en simple.',goal:`Un point gagné en visant ${cible} compte double. Objectif : au moins 2 points doubles.`},
+    perdu:{icon:'🛡️',title:'Le mur',setup:'Ton partenaire attaque, toi tu défends en renvoyant toutes les balles.',goal:'Tenir 8 balles de suite en défense, puis on échange les rôles.'},
+    echange:{icon:'⚡',title:'Échange à contrainte',setup:'Échange libre en diagonale puis en ligne.',goal:`À chaque balle, annoncer d'avance où tu vises. Marquer 1 point à chaque fois que tu as raison (zone ${least[1]} comprise).`}
+  };
+  out.push(Object.assign({tier:'3 · Je me challenge'},games[mode]||games.echange));
+  return out;
+}
+function sitHtml(list){
+  if(!list.length) return '';
+  return `<div class="card"><h3>🏓 3 situations pour progresser</h3>${list.map(s=>`<div class="sit"><span class="badge">${s.tier}</span><b>${s.icon} ${esc(s.title)}</b><p><b style="display:inline;font-size:14px">Mise en place :</b> ${s.setup}</p><p><b style="display:inline;font-size:14px">Objectif :</b> ${s.goal}</p></div>`).join('')}</div>`;
+}
+const prevOf = sess => { const sib=siblings(sess), i=sib.indexOf(sess); return i>0?sib[i-1]:null; };
+const nextNumOf = sess => siblings(sess).reduce((a,s)=>Math.max(a,s.num||0),0)+1;
+function adviceHtml(a,name){
+  const blk=(cls,title,list)=>list.length?`<div class="sum ${cls}"><b>${title}</b><ul>${list.map(t=>`<li>${t}</li>`).join('')}</ul></div>`:'';
+  return `<div class="card"><h3>📝 En résumé pour ${esc(name)}</h3>${blk('good','✅ Points forts',a.good)}${blk('work','🔧 À travailler',a.work)}${blk('chal','🏆 Défi',a.chal)}</div>`;
+}
+
 /* ---------- Bilan ---------- */
 function renderBilan(){
   const sess=viewing;
@@ -565,7 +685,10 @@ function renderBilan(){
     const diff=pct(inTable,total)-pIn;
     tips.push(`Par rapport à l'observation n°${prev.num} : ${diff>0?'+':''}${diff} points de balles sur la table, fautes ${pf}% → ${cf}%.`);
   }
+  const adv=advice(sess,bMode,prev,nextNum);
   $('#bilanBody').innerHTML = `
+    ${adviceHtml(adv,sess.name)}
+    ${sitHtml(situations(sess,bMode))}
     <div class="kpis">
       <div class="kpi"><b>${total}</b><span>balles notées</span></div>
       <div class="kpi"><b style="color:var(--ok)">${pct(inTable,total)}%</b><span>sur la table</span></div>
@@ -585,9 +708,16 @@ function renderBilan(){
       ${bar('Filet',c.filet||0)}${bar('Hors table',c.out||0)}
     </div>
     ${objHtml}
-    ${tips.length?`<div class="card"><h3>💡 À retenir</h3>${tips.map(t=>`<p class="tip">${t}</p>`).join('')}</div>`:''}
+    ${tips.length?`<div class="card"><h3>🔎 Détails</h3>${tips.map(t=>`<p class="tip">${t}</p>`).join('')}</div>`:''}
+    <div class="card"><h3>💬 Mon conseil à ${esc(sess.name)}</h3>
+      <textarea id="comment" maxlength="300" placeholder="Un conseil, un encouragement…">${esc(sess.comment||'')}</textarea>
+      <div class="legend">Il sera partagé et envoyé avec le bilan.</div></div>
+    <details class="card"><summary>ℹ️ Comment lire ce bilan ?</summary>
+      <p>La table est vue de dessus. <b>Zones 1, 2, 3</b> : fond de table (balles longues). <b>Zones 4, 5, 6</b> : près du filet (balles courtes). Gauche, milieu et droite se lisent comme à l'écran. Plus une zone est jaune, plus il y a de balles dedans. 🎯 = zone visée, 🚫 = zone à éviter.</p></details>
   `;
   buildTable($('#heat'),heat);
+  const ta=$('#comment');
+  if(ta) ta.oninput=()=>{ viewing.comment=ta.value; viewing.sent=false; save(); $('#send').textContent='📨 Envoyer au professeur'; };
 }
 $('#nextObs').onclick=()=>{
   const v=viewing;
@@ -601,11 +731,17 @@ function summaryText(sess){
     const m=MODES.find(x=>x.id===id), c=sess.counts[id]||{}, t=totalOf(c);
     out+=`\n${m.icon} ${m.t} (${t} balles)\n`;
     if(!t) return;
+    const a=advice(sess,id,prevOf(sess),nextNumOf(sess));
+    a.good.forEach(l=>out+=`  ✅ ${l.replace(/<[^>]+>/g,'')}\n`);
+    a.work.forEach(l=>out+=`  🔧 ${l.replace(/<[^>]+>/g,'')}\n`);
+    a.chal.forEach(l=>out+=`  🏆 ${l.replace(/<[^>]+>/g,'')}\n`);
+    situations(sess,id).forEach(s=>out+=`  🏓 ${s.title} — ${s.goal}\n`);
     ['A','B'].forEach(s=>{
       out+=`  ${s==='A'?'Côté adversaire':'Côté '+sess.name} : `+[1,2,3,4,5,6].map(n=>`z${n} ${pct(c[s+n]||0,t)}%`).join(' · ')+'\n';
     });
     out+=`  Filet ${pct(c.filet||0,t)}% · Hors table ${pct(c.out||0,t)}%\n`;
   });
+  if(sess.comment&&sess.comment.trim()) out+=`\n💬 Conseil de ${u.name} : ${sess.comment.trim()}\n`;
   return out;
 }
 $('#share').onclick=async()=>{
@@ -625,6 +761,7 @@ function sheetRows(sess){
     ZS.forEach(z=>row[(z[0]==='A'?'adv_z':'eleve_z')+z[1]]=c[z]||0);
     row.filet=c.filet||0; row.hors_table=c.out||0;
     const mk=marksOf(sess,id), zv=Object.keys(mk).filter(z=>mk[z]==='viser'), ze=Object.keys(mk).filter(z=>mk[z]==='eviter');
+    row.commentaire = sess.comment||'';
     row.pct_vise = zv.length ? pct(zv.reduce((a,z)=>a+(c[z]||0),0),t) : '';
     row.pct_evite = ze.length ? pct(ze.reduce((a,z)=>a+(c[z]||0),0),t) : '';
     return row;
